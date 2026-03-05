@@ -10,6 +10,7 @@ import WidgetKit
 import UserNotifications
 import IOBluetooth
 import Sparkle
+import ServiceManagement
 
 let fd = FileManager.default
 let ud = UserDefaults.standard
@@ -121,7 +122,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                     ncDeviceCount += count
                 }
             }
-            let menuHeight = CGFloat((max(max(allDevices.count,1)+ncDeviceCount,1)+hiddenRow)*37+30+ncCount)
+            let deviceRows = max(max(allDevices.count, 1) + ncDeviceCount, 1) + hiddenRow
+            let menuHeight = CGFloat(deviceRows * 37 + 30 + ncCount)
             let mouse = NSEvent.mouseLocation
             var menuX = mouse.x
             var menuY = mouse.y
@@ -185,6 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                 "nearCast": false,
                 "readBTHID": true,
                 "whitelistMode": false,
+                "hideMainWhenPinned": false,
                 "neverRemindMe": [String]()
             ]
         )
@@ -503,6 +506,8 @@ func refeshPinnedBar(unpin: String? = nil) {
                 button.image = image
                 button.title = "\(device.batteryLevel)\(device.isCharging != 0  ? "⚡︎" : "%")"
                 button.toolTip = device.deviceName
+                button.target = NSApp.delegate as? AppDelegate
+                button.action = #selector(AppDelegate.togglePopover(_:))
             }
             pinnedItems.append(statusItem)
         }
@@ -511,6 +516,14 @@ func refeshPinnedBar(unpin: String? = nil) {
     let expNames = expItems.map({ $0.button?.toolTip ?? "" })
     DispatchQueue.main.async { for e in expItems { NSStatusBar.system.removeStatusItem(e) } }
     pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
+
+    // Hide/show the default status bar icon based on pinned device icons visibility
+    let hideMainWhenPinned = ud.bool(forKey: "hideMainWhenPinned")
+    let showOn = ud.string(forKey: "showOn") ?? "sbar"
+    if showOn == "sbar" || showOn == "both" {
+        let hasVisiblePinnedItems = !pinnedItems.isEmpty
+        statusBarItem.isVisible = !(hideMainWhenPinned && hasVisiblePinnedItems)
+    }
 }
 
 @discardableResult

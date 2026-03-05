@@ -276,6 +276,7 @@ struct DisplayView: View {
     @AppStorage("batteryPercent") var batteryPercent = "outside"
     @AppStorage("hideLevel") var hideLevel = 90
     @AppStorage("disappearTime") var disappearTime = 20
+    @AppStorage("hideMainWhenPinned") var hideMainWhenPinned = false
     @State private var levelList = [95, 90, 80, 70, 60, 50, 40, 30, 20, 10]
     
     var body: some View {
@@ -303,6 +304,9 @@ struct DisplayView: View {
                     Text("after 40min").tag(40)
                     Text("after 60min").tag(60)
                 }
+                Divider().opacity(0.5)
+                SToggle("Hide icon when devices are shown", isOn: $hideMainWhenPinned,
+                        tips: "Automatically hides the AirBattery menu bar icon when at least one device icon (mouse, headphones, etc.) is visible.")
                 Divider().opacity(0.5)
                 SPicker("Hide percentage when above", selection: $hideLevel) {
                     Text("Never").tag(100)
