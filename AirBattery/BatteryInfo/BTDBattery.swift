@@ -56,12 +56,12 @@ class BTDBattery {
         for device in devices {
             if let json = try? JSONSerialization.jsonObject(with: Data(device.utf8), options: []) as? [String: Any] {
                 if let index = list.firstIndex(where: { dict in
-                    let name = dict["name"] as! String
-                    let mac = dict["mac"] as! String
-                    let type = dict["type"] as! String
-                    let nameNow = json["name"] as! String
-                    let macNow = json["mac"] as! String
-                    let typeNow = json["type"] as! String
+                    guard let name = dict["name"] as? String,
+                          let mac = dict["mac"] as? String,
+                          let type = dict["type"] as? String,
+                          let nameNow = json["name"] as? String,
+                          let macNow = json["mac"] as? String,
+                          let typeNow = json["type"] as? String else { return false }
                     return (name == nameNow && mac == macNow && type == typeNow)
                 }) {
                     list[index] = json
@@ -71,12 +71,13 @@ class BTDBattery {
             }
         }
         for d in list {
-            let mac = d["mac"] as! String
-            var name = d["name"] as! String
-            let type = d["type"] as! String
-            let time = d["time"] as! String
-            let level = d["level"] as! Int
-            let status = (d["status"] as! String) == "+" ? 1 : 0
+            guard let mac = d["mac"] as? String,
+                  var name = d["name"] as? String,
+                  let type = d["type"] as? String,
+                  let time = d["time"] as? String,
+                  let level = d["level"] as? Int,
+                  let statusRaw = d["status"] as? String else { continue }
+            let status = statusRaw == "+" ? 1 : 0
             if name == "" { name = "\(type) (\(mac))" }
             if connected.contains(mac) {
                 if let index = allDevices.firstIndex(of: name) { allDevices[index] = name } else { allDevices.append(name) }

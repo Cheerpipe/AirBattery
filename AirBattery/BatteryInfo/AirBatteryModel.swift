@@ -54,7 +54,7 @@ struct Device: Hashable, Codable {
 }
 
 class AirBatteryModel {
-    static var lock = false
+    private static let queue = DispatchQueue(label: "com.airbattery.modelQueue")
     static var Devices: [Device] = []
     static let machineType = ud.string(forKey: "machineType") ?? "Mac"
     static let key = "com.lihaoyun6.AirBattery.widget"
@@ -62,45 +62,51 @@ class AirBatteryModel {
     static func updateDevice(_ device: Device) {
         //let blockedItems = (ud.object(forKey: "blockedDevices") as? [String]) ?? [String]()
         //if blockedItems.contains(device.deviceName) { return }
-        if lock { return }
-        lock = true
-        //self.Devices.removeAll(where: {blockedItems.contains($0.deviceName)})
-        if let index = self.Devices.firstIndex(where: { $0.deviceName == device.deviceName }) {
-            self.Devices[index] = device
-        } else {
-            self.Devices.append(device)
+        queue.sync {
+            //self.Devices.removeAll(where: {blockedItems.contains($0.deviceName)})
+            if let index = self.Devices.firstIndex(where: { $0.deviceName == device.deviceName }) {
+                self.Devices[index] = device
+            } else {
+                self.Devices.append(device)
+            }
         }
-        lock = false
     }
     
     static func hideDevice(_ name: String) {
-        for index in Devices.indices {
-            if Devices[index].deviceName == name {
-                Devices[index].isHidden = true
+        queue.sync {
+            for index in Devices.indices {
+                if Devices[index].deviceName == name {
+                    Devices[index].isHidden = true
+                }
             }
         }
     }
     
     static func unhideDevice(_ name: String) {
-        for index in Devices.indices {
-            if Devices[index].deviceName == name {
-                Devices[index].isHidden = false
+        queue.sync {
+            for index in Devices.indices {
+                if Devices[index].deviceName == name {
+                    Devices[index].isHidden = false
+                }
             }
         }
     }
     
     static func getBlackList() -> [Device] {
-        let blackList = (ud.object(forKey: "blackList") ?? []) as! [String]
+        let blackList = (ud.object(forKey: "blackList") as? [String]) ?? []
         let devices = getAll(noFilter: true)
         return devices.filter({ blackList.contains($0.deviceName) })
     }
     
     static func getAll(reverse: Bool = false, noFilter: Bool = false) -> [Device] {
         let thisMac = ud.string(forKey: "deviceName")
-        let disappearTime = (ud.object(forKey: "disappearTime") ?? 20) as! Int
-        let blackList = (ud.object(forKey: "blackList") ?? []) as! [String]
+        let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
+        let blackList = (ud.object(forKey: "blackList") as? [String]) ?? []
         let now = Double(Date().timeIntervalSince1970)
-        var list = (reverse ? Array(Devices.reversed()) : Devices).filter { (now - $0.lastUpdate < Double(disappearTime * 60)) }
+        var list: [Device] = []
+        queue.sync {
+            list = (reverse ? Array(Devices.reversed()) : Devices).filter { (now - $0.lastUpdate < Double(disappearTime * 60)) }
+        }
         if !noFilter { list = list.filter { !blackList.contains($0.deviceName) && !$0.isHidden } }
         var newList: [Device] = list.filter({ $0.parentName == thisMac })
         for d in list {
@@ -177,7 +183,7 @@ class AirBatteryModel {
     }
     
     static func ncGetAll(url: URL, fromWidget: Bool = false) -> [Device] {
-        let disappearTime = (ud.object(forKey: "disappearTime") ?? 20) as! Int
+        let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
         let devices = readData(url: url)
         let now = Double(Date().timeIntervalSince1970)
         var localDevices = getAll().map({ $0.deviceName })

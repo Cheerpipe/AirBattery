@@ -285,7 +285,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
 
         if showOn == "dock" || showOn == "both" {
             let tipID = "ab.docktile-power.note"
-            let never = ud.object(forKey: "neverRemindMe") as! [String]
+            let never = ud.object(forKey: "neverRemindMe") as? [String] ?? []
             if !never.contains(tipID) {
                 let alert = createAlert(title: "AirBattery Tips".local, message: "Displaying AirBattery on the Dock will consume more power, it is better to use Menu Bar mode or Widgets.".local, button1: "Don't remind me again", button2: "OK")
                 if alert.runModal() == .alertFirstButtonReturn { ud.setValue(never + [tipID], forKey: "neverRemindMe") }
@@ -294,7 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         
         if readBTHID {
             let tipID = "ab.third-party-device.note"
-            let never = ud.object(forKey: "neverRemindMe") as! [String]
+            let never = ud.object(forKey: "neverRemindMe") as? [String] ?? []
             if !never.contains(tipID) {
                 let alert = createAlert(title: "AirBattery Tips".local, message: "If some of your devices shows battery level in the Bluetooth menu, but AirBattery doesn't find it. Try disconnecting and reconnecting it, and wait a few minutes.".local, button1: "Don't remind me again", button2: "OK")
                 if alert.runModal() == .alertFirstButtonReturn { ud.setValue(never + [tipID], forKey: "neverRemindMe") }
@@ -488,7 +488,7 @@ public extension UserDefaults {
 
 func refeshPinnedBar(unpin: String? = nil) {
     guard statusBarItem != nil else { return }
-    var pinnedList = (ud.object(forKey: "pinnedList") ?? []) as! [String]
+    var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
     if pinnedList.isEmpty { return }
     if let unpin = unpin { pinnedList.removeAll(where: { $0 == unpin }) }
     var allDevices = AirBatteryModel.getAll()
