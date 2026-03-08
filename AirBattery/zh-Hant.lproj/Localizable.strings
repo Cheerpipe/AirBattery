@@ -20,6 +20,7 @@
 "Device Icon" = "裝置圖示";
 "Built-in Battery Style" = "內建電池樣式";
 "Quit AirBattery" = "退出 AirBattery";
+"Quit" = "退出";
 "Show AirBattery" = "將 AirBattery 置於";
 "Dock" = "Dock";
 "Menu Bar" = "選單列";
@@ -54,6 +55,8 @@
 "Show Percentage" = "顯示百分比";
 "Hide percentage when above" = "高於此電量自動隱藏百分比";
 "Reverse Device List" = "顛倒裝置列表順序";
+"Hide main icon when a device icon is shown" = "當顯示裝置時隱藏主圖示";
+"Automatically hides the main AirBattery icon when at least one device battery icon is visible in the menu bar." = "當選單列中有至少一個裝置圖示時，自動隱藏 AirBattery 主圖示。";
 "Widget" = "小工具";
 "No Device Found!" = "未發現任何裝置!";
 "Low Battery" = "電池電量不足";

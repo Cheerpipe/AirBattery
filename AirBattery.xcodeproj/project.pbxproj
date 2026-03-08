@@ -131,6 +131,8 @@
 		1841D4502AA6071C0022A1BE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1841D4522AA6071D0022A1BE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1841D4552AA6071D0022A1BE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		1841D4702D11468E0022A1BE /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		1841D4712D11468E0022A1BE /* es-ES */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "es-ES"; path = "es-ES.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		1841D47B2AA8DF0B0022A1BE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		1841D47C2AAA20F80022A1BE /* InternalBattery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternalBattery.swift; sourceTree = "<group>"; };
 		1841D4802AAA28880022A1BE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -161,6 +163,8 @@
 		1893984C2DF73D8100E7C32E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		1893984D2DF73DF000E7C32E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		1895851A2B724DCD00108E5C /* IDeviceBattery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IDeviceBattery.swift; sourceTree = "<group>"; };
+		189BD5622D114660056D06C /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		189BD5632D114660056D06C /* es-ES */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "es-ES"; path = "es-ES.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		189BD5EA2BDE69660056D06C /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		18A0A9CC2AAE07EA00975B81 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = "zh-Hans"; path = "zh-Hans.lproj/Credits.rtf"; sourceTree = "<group>"; };
 		18B8E5C82B83C9AD00A20D03 /* BatteryWidget2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryWidget2.swift; sourceTree = "<group>"; };
@@ -464,6 +468,8 @@
 				Base,
 				"zh-Hans",
 				"zh-Hant",
+				es,
+				"es-ES",
 			);
 			mainGroup = 1841D4422AA6071C0022A1BE;
 			packageReferences = (
@@ -597,6 +603,8 @@
 			children = (
 				1841D47B2AA8DF0B0022A1BE /* zh-Hans */,
 				1893984D2DF73DF000E7C32E /* zh-Hant */,
+				1841D4702D11468E0022A1BE /* es */,
+				1841D4712D11468E0022A1BE /* es-ES */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
@@ -606,6 +614,8 @@
 			children = (
 				189BD5EA2BDE69660056D06C /* zh-Hans */,
 				1893984C2DF73D8100E7C32E /* zh-Hant */,
+				189BD5622D114660056D06C /* es */,
+				189BD5632D114660056D06C /* es-ES */,
 			);
 			name = InfoPlist.strings;
 			path = AirBattery;

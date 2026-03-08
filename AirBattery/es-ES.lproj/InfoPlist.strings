@@ -1,0 +1,9 @@
+/* 
+  InfoPlist.strings
+  AirBattery
+
+  Created by Antigravity on 2026/03/07.
+  
+*/
+"NSBluetoothAlwaysUsageDescription" = "AirBattery usa Bluetooth para la batería.";
+"NSLocalNetworkUsageDescription" = "AirBattery usa la red para la batería.";
