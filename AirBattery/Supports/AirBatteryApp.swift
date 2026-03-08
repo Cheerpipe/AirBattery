@@ -46,10 +46,12 @@ struct AirBatteryApp: App {
                     WindowAccessor(
                         onWindowOpen: { w in
                             if let w = w {
-                                //w.level = .floating
                                 w.titlebarSeparatorStyle = .none
                                 w.titleVisibility = .hidden
                                 w.styleMask.insert(.fullSizeContentView)
+                                w.titlebarAppearsTransparent = true
+                                w.toolbarStyle = .unified
+                                w.isMovableByWindowBackground = true
                                 guard let nsSplitView = findNSSplitVIew(view: w.contentView),
                                       let controller = nsSplitView.delegate as? NSSplitViewController else { return }
                                 controller.splitViewItems.first?.canCollapse = false

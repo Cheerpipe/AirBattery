@@ -391,7 +391,7 @@ struct popover: View {
                             overStackNC = -1
                             if hovering { overStack = 0 }
                         }
-                        .background(Group { if overStack == 0 { BlurView(material: .selection) } else { Color.clear } })
+                        .background(overStack == 0 ? Color.primary.opacity(0.1) : Color.clear)
                         .clipShape(RoundedCornersShape(radius: 5, corners: .allCorners))
                         .padding(.horizontal, 6)
                         
@@ -582,7 +582,7 @@ struct popover: View {
                                 }
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 16)
-                                .background(Group { if overStack == index { BlurView(material: .selection) } else { Color.clear } })
+                                .background(overStack == index ? Color.primary.opacity(0.1) : Color.clear)
                                 .clipShape(RoundedCornersShape(radius: 5, corners: .allCorners))
                                 .padding(.horizontal, 6)
                                 .onHover{ hovering in
@@ -704,11 +704,15 @@ struct popover: View {
                                             .frame(width: 20, height: 20, alignment: .center)
                                             .padding(.vertical, 4)
                                             .padding(.horizontal, 4)
-                                            .background(Group { if overStack2 == index { BlurView(material: .selection) } else { Color.clear } }).cornerRadius(2.5)
+                                            .background(overStack2 == index ? Color.primary.opacity(0.1) : Color.clear).cornerRadius(2.5)
                                             .onHover{ hovering in
                                                 overStack = -1
                                                 overStackNC = -1
-                                                if overStack2 != index { overStack2 = index }
+                                                if hovering {
+                                                    overStack2 = index
+                                                } else {
+                                                    overStack2 = -1
+                                                }
                                             }
                                     })
                                     .buttonStyle(.plain)
@@ -753,10 +757,17 @@ struct popover: View {
                         }
                         .padding(.vertical, 4)
                         .padding(.horizontal, 10)
-                        .background(Group { if overSettButton { BlurView(material: .selection) } else { Color.clear } }).cornerRadius(4)
+                        .background(overSettButton ? Color.primary.opacity(0.1) : Color.clear).cornerRadius(4)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .onHover{ hovering in overSettButton = hovering }
+                    .onHover{ hovering in
+                        overSettButton = hovering
+                        if hovering {
+                            overStack = -1
+                            overStack2 = -1
+                            overStackNC = -1
+                        }
+                    }
                     
                     Button(action: {
                         NSApp.terminate(nil)
@@ -769,10 +780,17 @@ struct popover: View {
                         }
                         .padding(.vertical, 4)
                         .padding(.horizontal, 10)
-                        .background(Group { if overQuitButton { BlurView(material: .selection) } else { Color.clear } }).cornerRadius(4)
+                        .background(overQuitButton ? Color.primary.opacity(0.1) : Color.clear).cornerRadius(4)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .onHover{ hovering in overQuitButton = hovering }
+                    .onHover{ hovering in
+                        overQuitButton = hovering
+                        if hovering {
+                            overStack = -1
+                            overStack2 = -1
+                            overStackNC = -1
+                        }
+                    }
                 }
                 .padding(.horizontal, 6)
                 .padding(.bottom, 6)
@@ -956,7 +974,7 @@ struct nearcastView: View {
                     .padding(.horizontal, 10)
                     .onHover{ hovering in overStack = index }
                 }
-                .background(Group { if overStackNC == mainIndex && overStack == index { BlurView(material: .selection) } else { Color.clear } })
+                .background(overStackNC == mainIndex && overStack == index ? Color.primary.opacity(0.1) : Color.clear)
                 .clipShape(RoundedCornersShape(radius: 2.9, corners: index == devices.count - 1 ? [.bottomLeft, .bottomRight] : (index == 0 ? [.topLeft, .topRight] : [])))
                 if index != devices.count-1 { Divider() }
             }

@@ -26,21 +26,21 @@ struct HoverButton<Content: View>: View {
 }
 
 struct SForm<Content: View>: View {
-    var spacing: CGFloat = 30
+    var spacing: CGFloat = 20
     var noSpacer: Bool = false
     @ViewBuilder let content: () -> Content
     
     var body: some View {
-        VStack(spacing: spacing) {
-            content()
-            if !noSpacer {
-                Spacer().frame(minHeight: 0)
+        ScrollView {
+            VStack(spacing: spacing) {
+                content()
+                if !noSpacer {
+                    Spacer(minLength: 20)
+                }
             }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .padding(.bottom, noSpacer ? 0 : -spacing)
-        .padding()
-        .frame(maxWidth: .infinity)
-        
     }
 }
 
@@ -65,7 +65,7 @@ struct SItem<Content: View>: View {
             if let label = label { Text(label) }
             Spacer()
             content()
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }
 
@@ -94,7 +94,7 @@ struct SSlider: View {
                 let modulo: Int = base % 1
                 value = base - modulo
             }), in: range).frame(maxWidth: width)
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }
 
@@ -144,7 +144,7 @@ struct SButton: View {
             if let tips = tips { SInfoButton(tips: tips) }
             Button(buttonTitle,
                    action: { action() })
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }
 
@@ -200,7 +200,7 @@ struct SPicker<T: Hashable, Content: View, Style: PickerStyle>: View {
                 .fixedSize()
                 .pickerStyle(style)
                 .buttonStyle(.borderless)
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }
 
@@ -224,7 +224,7 @@ struct SToggle: View {
                 .toggleStyle(.switch)
                 .scaleEffect(0.7)
                 .frame(width: 32)
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }
 
@@ -263,6 +263,6 @@ struct SSteper: View {
                 }
             Stepper("", value: $value)
                 .padding(.leading, -6)
-        }.frame(height: 16)
+        }.frame(height: 24)
     }
 }

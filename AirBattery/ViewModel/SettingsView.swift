@@ -41,8 +41,9 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
             .navigationSplitViewColumnWidth(min: 170, ideal: 180, max: 220)
-            .padding(.top, 9)
+            .padding(.top, 40)
         } detail: {
             switch selectedItem {
             case "Display":
@@ -61,6 +62,7 @@ struct SettingsView: View {
                 GeneralView()
             }
         }
+        .background(.ultraThinMaterial)
         .frame(minWidth: 600, minHeight: 440)
         .navigationTitle("AirBattery Settings")
     }
