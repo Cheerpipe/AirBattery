@@ -746,7 +746,7 @@ struct popover: View {
                         openSettingPanel()
                     }) {
                         HStack {
-                            Text("AirBattery Settings...".local)
+                            Text("Settings...".local)
                                 .font(.system(size: 13, weight: .regular))
                                 .foregroundColor(.primary)
                             Spacer()
@@ -762,7 +762,7 @@ struct popover: View {
                         NSApp.terminate(nil)
                     }) {
                         HStack {
-                            Text("Quit AirBattery".local)
+                            Text("Quit".local)
                                 .font(.system(size: 13, weight: .regular))
                                 .foregroundColor(.primary)
                             Spacer()
