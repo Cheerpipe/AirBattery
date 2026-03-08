@@ -12,38 +12,56 @@ import WidgetKit
 struct SettingsView: View {
     @State private var selectedItem: String? = "General"
     @AppStorage("showDebug") var showDebug: Bool = false
-    
+
     var body: some View {
-        NavigationView {
+        NavigationSplitView {
             List(selection: $selectedItem) {
-                NavigationLink(destination: GeneralView(), tag: "General", selection: $selectedItem) {
+                NavigationLink(value: "General") {
                     Label("General", image: "gear")
                 }
-                NavigationLink(destination: DisplayView(), tag: "Display", selection: $selectedItem) {
+                NavigationLink(value: "Display") {
                     Label("Menu Bar & Dock", image: "dock")
                 }
-                NavigationLink(destination: NearbilityView(), tag: "Nearbility", selection: $selectedItem) {
+                NavigationLink(value: "Nearbility") {
                     Label("Nearbility", image: "nearbility")
                 }
-                NavigationLink(destination: NearcastView(), tag: "Nearcast", selection: $selectedItem) {
+                NavigationLink(value: "Nearcast") {
                     Label("Nearcast", image: "nearcast")
                 }
-                NavigationLink(destination: WidgetView(), tag: "Widget", selection: $selectedItem) {
+                NavigationLink(value: "Widget") {
                     Label("Widget", image: "widget")
                 }
-                NavigationLink(destination: BlacklistView(), tag: "Blocklist", selection: $selectedItem) {
+                NavigationLink(value: "Blocklist") {
                     Label("Blocklist", image: "blacklist")
                 }
                 if showDebug {
-                    NavigationLink(destination: DebugView(selectedItem: $selectedItem), tag: "Debug", selection: $selectedItem) {
+                    NavigationLink(value: "Debug") {
                         Label("Debug", image: "debug")
                     }
                 }
             }
             .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 180, max: 220)
             .padding(.top, 9)
+        } detail: {
+            switch selectedItem {
+            case "Display":
+                DisplayView()
+            case "Nearbility":
+                NearbilityView()
+            case "Nearcast":
+                NearcastView()
+            case "Widget":
+                WidgetView()
+            case "Blocklist":
+                BlacklistView()
+            case "Debug":
+                DebugView(selectedItem: $selectedItem)
+            default:
+                GeneralView()
+            }
         }
-        .frame(width: 600, height: 440)
+        .frame(minWidth: 600, minHeight: 440)
         .navigationTitle("AirBattery Settings")
     }
 }

@@ -48,6 +48,8 @@ struct AirBatteryApp: App {
                             if let w = w {
                                 //w.level = .floating
                                 w.titlebarSeparatorStyle = .none
+                                w.titleVisibility = .hidden
+                                w.styleMask.insert(.fullSizeContentView)
                                 guard let nsSplitView = findNSSplitVIew(view: w.contentView),
                                       let controller = nsSplitView.delegate as? NSSplitViewController else { return }
                                 controller.splitViewItems.first?.canCollapse = false
@@ -544,22 +546,16 @@ func refeshPinnedBar(unpin: String? = nil) {
 @discardableResult
 func ensureLoginItem(enabled: Bool) -> Bool {
     let helperBundleIdentifier = "com.lihaoyun6.AirBatteryHelper"
-    if #available(macOS 13.0, *) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            return true
-        } catch {
-            NSLog("[AirBattery] SMAppService register/unregister failed: \(error.localizedDescription)")
-            return false
+    do {
+        if enabled {
+            try SMAppService.mainApp.register()
+        } else {
+            try SMAppService.mainApp.unregister()
         }
-    } else {
-        let ok = SMLoginItemSetEnabled(helperBundleIdentifier as CFString, enabled)
-        if !ok { NSLog("[AirBattery] SMLoginItemSetEnabled failed for \(helperBundleIdentifier)") }
-        return ok
+        return true
+    } catch {
+        NSLog("[AirBattery] SMAppService register/unregister failed: \(error.localizedDescription)")
+        return false
     }
 }
 
