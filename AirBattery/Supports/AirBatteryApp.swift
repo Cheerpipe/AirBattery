@@ -26,6 +26,7 @@ let bleBattery = BLEBattery()
 let btdBattery = BTDBattery()
 var updateDelay = 1
 var keepAliveActivity: NSObjectProtocol? = nil
+private var pendingIconTransition: DispatchWorkItem?
 
 @main
 struct AirBatteryApp: App {
@@ -486,6 +487,7 @@ public extension UserDefaults {
 }
 
 func refeshPinnedBar(unpin: String? = nil) {
+    guard statusBarItem != nil else { return }
     var pinnedList = (ud.object(forKey: "pinnedList") ?? []) as! [String]
     if pinnedList.isEmpty { return }
     if let unpin = unpin { pinnedList.removeAll(where: { $0 == unpin }) }
@@ -517,12 +519,25 @@ func refeshPinnedBar(unpin: String? = nil) {
     DispatchQueue.main.async { for e in expItems { NSStatusBar.system.removeStatusItem(e) } }
     pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
 
-    // Hide/show the default status bar icon based on pinned device icons visibility
+    // Safe icon transition with delay to ensure at least one icon is always visible
+    pendingIconTransition?.cancel()
     let hideMainWhenPinned = ud.bool(forKey: "hideMainWhenPinned")
     let showOn = ud.string(forKey: "showOn") ?? "sbar"
     if showOn == "sbar" || showOn == "both" {
-        let hasVisiblePinnedItems = !pinnedItems.isEmpty
-        statusBarItem.isVisible = !(hideMainWhenPinned && hasVisiblePinnedItems)
+        let shouldHideMain = hideMainWhenPinned && !pinnedItems.isEmpty
+        let mainIsVisible = statusBarItem.isVisible
+        if shouldHideMain && mainIsVisible {
+            // Device icons exist → hide main icon after 1s so a device icon is always shown first
+            let work = DispatchWorkItem {
+                guard statusBarItem != nil else { return }
+                statusBarItem.isVisible = false
+            }
+            pendingIconTransition = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+        } else if !shouldHideMain && !mainIsVisible {
+            // No device icons (or feature disabled) → show main icon immediately
+            statusBarItem.isVisible = true
+        }
     }
 }
 

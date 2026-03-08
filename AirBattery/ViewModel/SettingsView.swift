@@ -305,8 +305,8 @@ struct DisplayView: View {
                     Text("after 60min").tag(60)
                 }
                 Divider().opacity(0.5)
-                SToggle("Hide icon when devices are shown", isOn: $hideMainWhenPinned,
-                        tips: "Automatically hides the AirBattery menu bar icon when at least one device icon (mouse, headphones, etc.) is visible.")
+                SToggle("Hide main icon when a device icon is shown", isOn: $hideMainWhenPinned,
+                        tips: "Automatically hides the main AirBattery icon when at least one device battery icon is visible in the menu bar.")
                 Divider().opacity(0.5)
                 SPicker("Hide percentage when above", selection: $hideLevel) {
                     Text("Never").tag(100)

@@ -215,6 +215,7 @@ struct BatteryLevelView: View {
 }
 
 func setStatusBar(width: Double) {
+    guard statusBarItem != nil else { return }
     let iconView = NSHostingView(rootView: mainBatteryView())
     iconView.frame = NSRect(x: 0, y: 0, width: width, height: 21.5)
     statusBarItem.button?.subviews.removeAll()
