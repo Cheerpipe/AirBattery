@@ -126,6 +126,14 @@ class AirBatteryModel {
         return nil
     }
     
+    static func getAnyByName(_ name: String) -> Device? {
+        var device: Device?
+        queue.sync {
+            device = Devices.first(where: { $0.deviceName == name })
+        }
+        return device
+    }
+    
     static func getByID(_ id: String) -> Device? {
         for d in getAll(noFilter: true) { if d.deviceID == id { return d } }
         return nil

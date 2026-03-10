@@ -292,6 +292,7 @@ struct popover: View {
     @State private var overHideButton = false
     @State private var overAlertButton = false
     @State private var overPinButton = false
+    @State private var overAlwaysPinButton = false
     @State private var overInfoButton = false
     @State private var overQuitButton = false
     @State private var overSettButton = false
@@ -303,6 +304,7 @@ struct popover: View {
     @State private var hidden2 = [Int]()
     @State private var alertList = ud.get(objectType: [btAlert].self, forKey: "alertList") ?? []
     @State private var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
     @State private var allNearcast = getFiles(withExtension: "json", in: ncFolder)
     
     var body: some View {
@@ -502,35 +504,50 @@ struct popover: View {
                                                     .onHover{ hovering in overAlertButton = hovering }
                                                 }
                                                 if allDevices[index].deviceID != "@MacInternalBattery" {
-                                                    if !pinnedList.contains(allDevices[index].deviceName) {
-                                                        Button(action: {
-                                                            pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                    // Standard Pin Button
+                                                    Button(action: {
+                                                        pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                        if !pinnedList.contains(allDevices[index].deviceName) {
                                                             pinnedList.append(allDevices[index].deviceName)
-                                                            ud.set(pinnedList, forKey: "pinnedList")
-                                                            refeshPinnedBar()
-                                                        }, label: {
-                                                            Image("pin.circle")
-                                                                .resizable().scaledToFit()
-                                                                .frame(width: 18, height: 18, alignment: .center)
-                                                                .foregroundColor(overPinButton ? .accentColor : .secondary)
-                                                        })
-                                                        .buttonStyle(PlainButtonStyle())
-                                                        .onHover{ hovering in overPinButton = hovering }
-                                                    } else {
-                                                        Button(action: {
-                                                            pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                            // Remove from always pinned if being added to standard? 
+                                                            // Actually, they are distinct. But usually, you'd want one or the other.
+                                                            // Requested: "always visible" vs "standard".
+                                                            alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                        } else {
                                                             pinnedList.removeAll(where:  { $0 == allDevices[index].deviceName })
-                                                            refeshPinnedBar(unpin: allDevices[index].deviceName)
-                                                            ud.set(pinnedList, forKey: "pinnedList")
-                                                        }, label: {
-                                                            Image("pin.circle.fill")
-                                                                .resizable().scaledToFit()
-                                                                .frame(width: 18, height: 18, alignment: .center)
-                                                                .foregroundColor(overPinButton ? .accentColor : .secondary)
-                                                        })
-                                                        .buttonStyle(PlainButtonStyle())
-                                                        .onHover{ hovering in overPinButton = hovering }
-                                                    }
+                                                        }
+                                                        ud.set(pinnedList, forKey: "pinnedList")
+                                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                                        refeshPinnedBar()
+                                                    }, label: {
+                                                        Image(pinnedList.contains(allDevices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                                            .resizable().scaledToFit()
+                                                            .frame(width: 18, height: 18, alignment: .center)
+                                                            .foregroundColor(overPinButton ? .accentColor : (pinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
+                                                    })
+                                                    .buttonStyle(PlainButtonStyle())
+                                                    .onHover{ hovering in overPinButton = hovering }
+                                                    
+                                                    // Always Visible Pin Button
+                                                    Button(action: {
+                                                        alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                                                        if !alwaysPinnedList.contains(allDevices[index].deviceName) {
+                                                            alwaysPinnedList.append(allDevices[index].deviceName)
+                                                            pinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                        } else {
+                                                            alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                        }
+                                                        ud.set(pinnedList, forKey: "pinnedList")
+                                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                                        refeshPinnedBar()
+                                                    }, label: {
+                                                        Image(systemName: alwaysPinnedList.contains(allDevices[index].deviceName) ? "pin.square.fill" : "pin.square")
+                                                            .resizable().scaledToFit()
+                                                            .frame(width: 14, height: 14, alignment: .center) // Square is slightly larger visually, so 14 looks better next to 18 circle
+                                                            .foregroundColor(overAlwaysPinButton ? .accentColor : (alwaysPinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
+                                                    })
+                                                    .buttonStyle(PlainButtonStyle())
+                                                    .onHover{ hovering in overAlwaysPinButton = hovering }
                                                 }
                                                 if #available(macOS 14, *) {
                                                     Button(action: {
@@ -813,6 +830,8 @@ struct popover: View {
         .onReceive(mainTimer) { t in
             if !fromDock && menuPopover.isShown {
                 allDevices = AirBatteryModel.getAll()
+                pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
                 hiddenDevices = AirBatteryModel.getBlackList()
                 hidden = [Int]()
                 hidden2 = [Int]()
@@ -834,6 +853,8 @@ struct nearcastView: View {
     @State private var overPinButton = false
     @State private var alertList = ud.get(objectType: [btAlert].self, forKey: "alertList") ?? []
     @State private var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+    @State private var overAlwaysPinButton = false
     
     var body: some View {
         Spacer().frame(height: 8)
@@ -859,6 +880,12 @@ struct nearcastView: View {
                                     .foregroundColor(.blackWhite)
                             }
                             if pinnedList.contains(devices[index].deviceName) {
+                                Image(systemName: "pin.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.blackWhite)
+                                    .offset(y: 0.2)
+                            }
+                            if alwaysPinnedList.contains(devices[index].deviceName) {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.blackWhite)
@@ -912,35 +939,47 @@ struct nearcastView: View {
                                         .buttonStyle(PlainButtonStyle())
                                         .onHover{ hovering in overAlertButton = hovering }
                                     }
-                                    if !pinnedList.contains(devices[index].deviceName) {
-                                        Button(action: {
-                                            pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                    // Standard Pin Button
+                                    Button(action: {
+                                        pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                        if !pinnedList.contains(devices[index].deviceName) {
                                             pinnedList.append(devices[index].deviceName)
-                                            ud.set(pinnedList, forKey: "pinnedList")
-                                            refeshPinnedBar()
-                                        }, label: {
-                                            Image("pin.circle")
-                                                .resizable().scaledToFit()
-                                                .frame(width: 18, height: 18, alignment: .center)
-                                                .foregroundColor(overPinButton ? .accentColor : .secondary)
-                                        })
-                                        .buttonStyle(PlainButtonStyle())
-                                        .onHover{ hovering in overPinButton = hovering }
-                                    } else {
-                                        Button(action: {
-                                            pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                            pinnedList.removeAll { $0 == devices[index].deviceName }
-                                            ud.set(pinnedList, forKey: "pinnedList")
-                                            refeshPinnedBar()
-                                        }, label: {
-                                            Image("pin.circle.fill")
-                                                .resizable().scaledToFit()
-                                                .frame(width: 18, height: 18, alignment: .center)
-                                                .foregroundColor(overPinButton ? .accentColor : .secondary)
-                                        })
-                                        .buttonStyle(PlainButtonStyle())
-                                        .onHover{ hovering in overPinButton = hovering }
-                                    }
+                                            alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        } else {
+                                            pinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        }
+                                        ud.set(pinnedList, forKey: "pinnedList")
+                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                        refeshPinnedBar()
+                                    }, label: {
+                                        Image(pinnedList.contains(devices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                            .resizable().scaledToFit()
+                                            .frame(width: 18, height: 18, alignment: .center)
+                                            .foregroundColor(overPinButton ? .accentColor : (pinnedList.contains(devices[index].deviceName) ? .accentColor : .secondary))
+                                    })
+                                    .buttonStyle(PlainButtonStyle())
+                                    .onHover{ hovering in overPinButton = hovering }
+                                    
+                                    // Always Visible Pin Button
+                                    Button(action: {
+                                        alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                                        if !alwaysPinnedList.contains(devices[index].deviceName) {
+                                            alwaysPinnedList.append(devices[index].deviceName)
+                                            pinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        } else {
+                                            alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        }
+                                        ud.set(pinnedList, forKey: "pinnedList")
+                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                        refeshPinnedBar()
+                                    }, label: {
+                                        Image(systemName: alwaysPinnedList.contains(devices[index].deviceName) ? "pin.square.fill" : "pin.square")
+                                            .resizable().scaledToFit()
+                                            .frame(width: 14, height: 14, alignment: .center)
+                                            .foregroundColor(overAlwaysPinButton ? .accentColor : (alwaysPinnedList.contains(devices[index].deviceName) ? .accentColor : .secondary))
+                                    })
+                                    .buttonStyle(PlainButtonStyle())
+                                    .onHover{ hovering in overAlwaysPinButton = hovering }
                                     if #available(macOS 14, *) {
                                         Button(action: {
                                             copyToClipboard(devices[index].deviceName)

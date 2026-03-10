@@ -274,6 +274,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
             button.action = #selector(togglePopover(_ :))
         }
         statusBarItem.isVisible = !(showOn == "dock" || showOn == "none")
+        refeshPinnedBar()
+        updateMainIconVisibility(immediate: true)
+        
         NSApp.dockTile.contentView = NSHostingView(rootView: MultiBatteryView())
         NSApp.dockTile.display()
         if nearCast {
@@ -389,20 +392,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     }*/
     
     @objc func togglePopover(_ sender: Any?) {
-        if let button = statusBarItem.button, !menuPopover.isShown {
-            var allDevices = AirBatteryModel.getAll()
-            let ibStatus = InternalBattery.status
-            if ibStatus.hasBattery { allDevices.insert(ib2ab(ibStatus), at: 0) }
-            let contentView = NSHostingController(rootView: popover(fromDock: false, allDevice: allDevices))
-            menuPopover.setValue(true, forKeyPath: "shouldHideAnchor")
-            menuPopover.contentViewController = contentView
-            menuPopover.behavior = .transient
-            var bound = button.bounds
-            if getMenuBarHeight() == 24.0 { bound.origin.y -= 6 }
-            menuPopover.show(relativeTo: bound, of: button, preferredEdge: .minY)
-            //menuPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            menuPopover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+        if menuPopover.isShown {
+            menuPopover.performClose(sender)
+            return
         }
+        
+        guard let button = sender as? NSButton else { return }
+        
+        var allDevices = AirBatteryModel.getAll()
+        let ibStatus = InternalBattery.status
+        if ibStatus.hasBattery { allDevices.insert(ib2ab(ibStatus), at: 0) }
+        let contentView = NSHostingController(rootView: popover(fromDock: false, allDevice: allDevices))
+        menuPopover.setValue(true, forKeyPath: "shouldHideAnchor")
+        menuPopover.contentViewController = contentView
+        menuPopover.behavior = .transient
+        var bound = button.bounds
+        if getMenuBarHeight() == 24.0 { bound.origin.y -= 6 }
+        menuPopover.show(relativeTo: bound, of: button, preferredEdge: .minY)
+        menuPopover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
     }
     
     @objc func handleURLEvent(_ event: NSAppleEventDescriptor, replyEvent: NSAppleEventDescriptor) {
@@ -493,36 +500,117 @@ public extension UserDefaults {
 func refeshPinnedBar(unpin: String? = nil) {
     guard statusBarItem != nil else { return }
     var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-    if pinnedList.isEmpty { return }
-    if let unpin = unpin { pinnedList.removeAll(where: { $0 == unpin }) }
-    var allDevices = AirBatteryModel.getAll()
+    var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+    
+    if pinnedList.isEmpty && alwaysPinnedList.isEmpty {
+        // Remove all current pinned items if both lists are empty
+        let expNames = pinnedItems.map({ $0.button?.toolTip ?? "" })
+        DispatchQueue.main.async { for e in pinnedItems { NSStatusBar.system.removeStatusItem(e) } }
+        pinnedItems.removeAll()
+        updateMainIconVisibility()
+        return
+    }
+    
+    if let unpin = unpin {
+        pinnedList.removeAll(where: { $0 == unpin })
+        alwaysPinnedList.removeAll(where: { $0 == unpin })
+    }
+    
+    let now = Date().timeIntervalSince1970
+    let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
+    var allDevices = AirBatteryModel.getAll(noFilter: true)
     let ncFiles = getFiles(withExtension: "json", in: ncFolder)
     for ncFile in ncFiles { allDevices += AirBatteryModel.ncGetAll(url: ncFile) }
-    let pinnedDevices = allDevices.filter({ pinnedList.contains($0.deviceName) })
-    let deviceNames = pinnedDevices.map({ $0.deviceName })
-    for device in pinnedDevices {
-        if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
-            pinnedItems[index].button?.title = "\(device.batteryLevel)\(device.isCharging != 0  ? "⚡︎" : "%")"
-        } else {
-            let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = statusItem.button {
-                let icon = getDeviceIcon(device)
-                let image = NSImage(named: icon)!.resized(to: NSSize(width: 17, height: 17))
-                image.isTemplate = true
-                button.image = image
-                button.title = "\(device.batteryLevel)\(device.isCharging != 0  ? "⚡︎" : "%")"
-                button.toolTip = device.deviceName
-                button.target = NSApp.delegate as? AppDelegate
-                button.action = #selector(AppDelegate.togglePopover(_:))
+    
+    // Combined list of names to manage
+    let allPinnedNames = Array(Set(pinnedList + alwaysPinnedList))
+    
+    for name in allPinnedNames {
+        let isAlwaysPinned = alwaysPinnedList.contains(name)
+        let device = allDevices.first(where: { $0.deviceName == name })
+        
+        if let device = device {
+            // Device is in the "allDevices" list (within 20 mins of last update)
+            // But for standard pins, we want a stricter "active" check (e.g. 2 mins)
+            let isStale = (now - device.lastUpdate > 120) // 2 minutes timeout for "disappearing"
+            
+            if !isStale {
+                updateOrAddStatusItem(for: device, opacity: 1.0, showText: true)
+            } else if isAlwaysPinned {
+                updateOrAddStatusItem(for: device, opacity: 0.7, showText: false)
             }
-            pinnedItems.append(statusItem)
+        } else if isAlwaysPinned {
+            // Device is completely gone from the list, but always pinned
+            if let hDevice = AirBatteryModel.getAnyByName(name) {
+                updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
+            }
         }
     }
-    let expItems = pinnedItems.filter({ !pinnedList.contains($0.button?.toolTip ?? "") || !deviceNames.contains($0.button?.toolTip ?? "") })
+    
+    // Cleanup items that are no longer in either list or are disconnected standard pins
+    let activePinnedNames = allPinnedNames.filter { name in
+        if let device = allDevices.first(where: { $0.deviceName == name }) {
+            let isStale = (now - device.lastUpdate > 120)
+            return alwaysPinnedList.contains(name) || !isStale
+        }
+        return alwaysPinnedList.contains(name)
+    }
+    
+    let expItems = pinnedItems.filter({ !activePinnedNames.contains($0.button?.toolTip ?? "") })
     let expNames = expItems.map({ $0.button?.toolTip ?? "" })
     DispatchQueue.main.async { for e in expItems { NSStatusBar.system.removeStatusItem(e) } }
     pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
 
+    updateMainIconVisibility()
+}
+
+func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool) {
+    let title = showText ? "\(device.batteryLevel)\(device.isCharging != 0 ? "⚡︎" : "%")" : ""
+    
+    if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
+        let button = pinnedItems[index].button
+        button?.title = title
+        if let icon = button?.image {
+            // Re-apply icon with potentially different opacity if needed
+            // Actually, we should probably recreate the image if opacity changed significantly
+            let baseImage = NSImage(named: getDeviceIcon(device))!
+            let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
+            resized.isTemplate = true
+            
+            // Apply opacity
+            let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
+                resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                return true
+            }
+            opaqueImage.isTemplate = true
+            button?.image = opaqueImage
+        }
+    } else {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            let icon = getDeviceIcon(device)
+            let baseImage = NSImage(named: icon)!
+            let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
+            resized.isTemplate = true
+            
+            // Apply opacity
+            let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
+                resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                return true
+            }
+            opaqueImage.isTemplate = true
+            
+            button.image = opaqueImage
+            button.title = title
+            button.toolTip = device.deviceName
+            button.target = NSApp.delegate as? AppDelegate
+            button.action = #selector(AppDelegate.togglePopover(_:))
+        }
+        pinnedItems.append(statusItem)
+    }
+}
+
+func updateMainIconVisibility(immediate: Bool = false) {
     // Safe icon transition with delay to ensure at least one icon is always visible
     pendingIconTransition?.cancel()
     let hideMainWhenPinned = ud.bool(forKey: "hideMainWhenPinned")
@@ -531,13 +619,17 @@ func refeshPinnedBar(unpin: String? = nil) {
         let shouldHideMain = hideMainWhenPinned && !pinnedItems.isEmpty
         let mainIsVisible = statusBarItem.isVisible
         if shouldHideMain && mainIsVisible {
-            // Device icons exist → hide main icon after 1s so a device icon is always shown first
-            let work = DispatchWorkItem {
-                guard statusBarItem != nil else { return }
+            if immediate {
                 statusBarItem.isVisible = false
+            } else {
+                // Device icons exist → hide main icon after 1s so a device icon is always shown first
+                let work = DispatchWorkItem {
+                    guard statusBarItem != nil else { return }
+                    statusBarItem.isVisible = false
+                }
+                pendingIconTransition = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
             }
-            pendingIconTransition = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
         } else if !shouldHideMain && !mainIsVisible {
             // No device icons (or feature disabled) → show main icon immediately
             statusBarItem.isVisible = true
