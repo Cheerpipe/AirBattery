@@ -20,6 +20,7 @@ let nearCastTimer = Timer.publish(every: TimeInterval(60 * updateInterval + Int(
 let widgetViewTimer = Timer.publish(every: TimeInterval(60 * updateInterval), on: .main, in: .common).autoconnect()
 let macID = getMacModelIdentifier()
 let isoFormatter = ISO8601DateFormatter()
+let appStartTime = Date()
 var lowPowerNoteDelay = [String: Double]()
 
 // Serialized incremental log reader for Enhanced HID scans

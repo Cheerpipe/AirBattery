@@ -59,6 +59,11 @@ class AirBatteryModel {
     static let machineType = ud.string(forKey: "machineType") ?? "Mac"
     static let key = "com.lihaoyun6.AirBattery.widget"
     
+    // Caching
+    private static var cachedAll: [Device] = []
+    private static var lastCacheTime: Date = Date(timeIntervalSince1970: 0)
+    private static var cacheIsValid = false
+    
     static func updateDevice(_ device: Device) {
         //let blockedItems = (ud.object(forKey: "blockedDevices") as? [String]) ?? [String]()
         //if blockedItems.contains(device.deviceName) { return }
@@ -69,6 +74,7 @@ class AirBatteryModel {
             } else {
                 self.Devices.append(device)
             }
+            cacheIsValid = false
         }
     }
     
@@ -97,15 +103,22 @@ class AirBatteryModel {
         let devices = getAll(noFilter: true)
         return devices.filter({ blackList.contains($0.deviceName) })
     }
-    
     static func getAll(reverse: Bool = false, noFilter: Bool = false) -> [Device] {
+        let uptime = Date().timeIntervalSince(appStartTime)
+        let now = Date()
+        
+        // Caching logic: only active after 60s uptime
+        if uptime > 60 && cacheIsValid && now.timeIntervalSince(lastCacheTime) < 2 {
+            return cachedAll
+        }
+        
         let thisMac = ud.string(forKey: "deviceName")
         let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
         let blackList = (ud.object(forKey: "blackList") as? [String]) ?? []
-        let now = Double(Date().timeIntervalSince1970)
+        let nowDouble = Double(now.timeIntervalSince1970)
         var list: [Device] = []
         queue.sync {
-            list = (reverse ? Array(Devices.reversed()) : Devices).filter { (now - $0.lastUpdate < Double(disappearTime * 60)) }
+            list = (reverse ? Array(Devices.reversed()) : Devices).filter { (nowDouble - $0.lastUpdate < Double(disappearTime * 60)) }
         }
         if !noFilter { list = list.filter { !blackList.contains($0.deviceName) && !$0.isHidden } }
         var newList: [Device] = list.filter({ $0.parentName == thisMac })
@@ -118,7 +131,16 @@ class AirBatteryModel {
             }
         }
         for dd in list.filter({ !newList.contains($0) }) { newList.append(dd) }
-        return newList.filter({ !checkIfBlocked(name: $0.deviceName) })
+        let result = newList.filter({ !checkIfBlocked(name: $0.deviceName) })
+        
+        // Update cache
+        if uptime > 60 {
+            cachedAll = result
+            lastCacheTime = now
+            cacheIsValid = true
+        }
+        
+        return result
     }
     
     static func getByName(_ name: String) -> Device? {

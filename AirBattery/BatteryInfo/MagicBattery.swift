@@ -11,10 +11,21 @@ import IOBluetooth
 class SPBluetoothDataModel {
     static var shared: SPBluetoothDataModel = SPBluetoothDataModel()
     var data: String = "{}"
+    private var lastUpdate: Date = Date(timeIntervalSince1970: 0)
     
     func refeshData(completion: (String) -> Void, error: (() -> Void)? = nil) {
+        let uptime = Date().timeIntervalSince(appStartTime)
+        let now = Date()
+        
+        // After 60s of uptime, throttle to once per 60s
+        if uptime > 60 && now.timeIntervalSince(lastUpdate) < 60 {
+            completion(data)
+            return
+        }
+        
         if let result = process(path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"]) {
             data = result
+            lastUpdate = now
             completion(result)
         } else {
             error?()

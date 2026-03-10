@@ -151,27 +151,35 @@ struct mainBatteryView: View {
         }
         .onReceive(dockTimer) { t in refeshPinnedBar() }
         .onReceive(mainTimer) { t in
+            let uptime = Date().timeIntervalSince(appStartTime)
+            let isInitialPeriod = uptime < 60
+            
             if item.hasBattery {
-                InternalBattery.status = getPowerState()
-                let width = statusBarItem.button?.frame.size.width
-                if intBattOnStatusBar {
-                    if test_debug {
-                        InternalBattery.status = iBattery(hasBattery: test_hasib, isCharging: !test_full, isCharged: false, acPowered: test_ac, timeLeft: "", batteryLevel: test_iblevel)
-                    } else {
-                        InternalBattery.status = getPowerState()
-                    }
-                    item = InternalBattery.status
-                    if batteryPercent != "outside" {
-                        if width != 42 { setStatusBar(width: 42) }
-                    } else {
-                        if item.batteryLevel > hideLevel {
+                let newState = getPowerState()
+                
+                // Only update if state changed OR we are in the initial responsive period
+                if isInitialPeriod || newState.batteryLevel != item.batteryLevel || newState.acPowered != item.acPowered || newState.isCharging != item.isCharging {
+                    InternalBattery.status = newState
+                    let width = statusBarItem.button?.frame.size.width
+                    if intBattOnStatusBar {
+                        if test_debug {
+                            InternalBattery.status = iBattery(hasBattery: test_hasib, isCharging: !test_full, isCharged: false, acPowered: test_ac, timeLeft: "", batteryLevel: test_iblevel)
+                        } else {
+                            InternalBattery.status = newState
+                        }
+                        item = InternalBattery.status
+                        if batteryPercent != "outside" {
                             if width != 42 { setStatusBar(width: 42) }
                         } else {
-                            if width != 76 { setStatusBar(width: 76) }
+                            if item.batteryLevel > hideLevel {
+                                if width != 42 { setStatusBar(width: 42) }
+                            } else {
+                                if width != 76 { setStatusBar(width: 76) }
+                            }
                         }
+                    } else {
+                        if width != 36 { setStatusBar(width: 36) }
                     }
-                } else {
-                    if width != 36 { setStatusBar(width: 36) }
                 }
             } else {
                 if test_debug {
@@ -214,8 +222,11 @@ struct BatteryLevelView: View {
     }
 }
 
-func setStatusBar(width: Double) {
+func setStatusBar(width: CGFloat) {
     guard statusBarItem != nil else { return }
+    if statusBarItem.button?.frame.size.width == width && statusBarItem.button?.subviews.count ?? 0 > 0 {
+        return
+    }
     let iconView = NSHostingView(rootView: mainBatteryView())
     iconView.frame = NSRect(x: 0, y: 0, width: width, height: 21.5)
     statusBarItem.button?.subviews.removeAll()
