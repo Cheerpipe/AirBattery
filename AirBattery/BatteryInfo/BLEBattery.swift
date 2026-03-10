@@ -298,6 +298,13 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 }
             }
         }
+        
+        let lowerName = name.lowercased()
+        if lowerName.contains("ipad") { return "iPad" }
+        if lowerName.contains("iphone") { return "iPhone" }
+        if lowerName.contains("watch") { return "Watch" }
+        if lowerName.contains("pencil") { return "Pencil" }
+        
         return "general_bt"
     }
     

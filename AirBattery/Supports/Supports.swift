@@ -575,12 +575,18 @@ func getHeadphoneModel(_ model: String) -> String {
 }
 
 func getDeviceIcon(_ d: Device) -> String {
+    let lowerType = d.deviceType.lowercased()
+    let lowerName = d.deviceName.lowercased()
+    
     switch d.deviceType {
     case "blank":
         return "blank"
     case "virtual":
         return "square.dashed"
     case "general_bt":
+        if lowerName.contains("ipad") { return "ipad" }
+        if lowerName.contains("iphone") { return "iphone" }
+        if lowerName.contains("pencil") { return "pencil" }
         return "bluetooth.fill"
     case "MobilePhone":
         return "iphone.gen1"
@@ -590,7 +596,7 @@ func getDeviceIcon(_ d: Device) -> String {
             if (Int(id) ?? 0 < 14) { return "iphone.gen2" }
         }
         return "iphone"
-    case "iPad":
+    case "iPad", "Tablet":
         if let model = d.deviceModel, let m = model.components(separatedBy: ",").first, let id = m.components(separatedBy: "d").last {
             if (Int(id) ?? 0 < 13) && !["iPad8"].contains(m) { return "ipad.gen1" }
         }
