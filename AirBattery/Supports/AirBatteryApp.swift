@@ -27,7 +27,6 @@ let btdBattery = BTDBattery()
 var updateDelay = 1
 var keepAliveActivity: NSObjectProtocol? = nil
 private var pendingIconTransition: DispatchWorkItem?
-private var ghostItems: [String: Date] = [:]
 
 @main
 struct AirBatteryApp: App {
@@ -494,34 +493,13 @@ public extension UserDefaults {
 func refeshPinnedBar(unpin: String? = nil) {
     guard statusBarItem != nil else { return }
     var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-    if pinnedList.isEmpty && ghostItems.isEmpty { return }
+    if pinnedList.isEmpty { return }
     if let unpin = unpin { pinnedList.removeAll(where: { $0 == unpin }) }
     var allDevices = AirBatteryModel.getAll()
     let ncFiles = getFiles(withExtension: "json", in: ncFolder)
     for ncFile in ncFiles { allDevices += AirBatteryModel.ncGetAll(url: ncFile) }
-    
-    let now = Date()
-    
-    // Identify devices that are pinned but no longer available
-    let currentDeviceNames = Set(allDevices.map { $0.deviceName })
-    for deviceName in pinnedList {
-        if !currentDeviceNames.contains(deviceName) {
-            if ghostItems[deviceName] == nil {
-                ghostItems[deviceName] = now.addingTimeInterval(15)
-            }
-        } else {
-            // If it came back, remove from ghosts
-            ghostItems.removeValue(forKey: deviceName)
-        }
-    }
-    
-    // Cleanup expired ghosts
-    ghostItems = ghostItems.filter { $0.value > now }
-    
     let pinnedDevices = allDevices.filter({ pinnedList.contains($0.deviceName) })
     let deviceNames = pinnedDevices.map({ $0.deviceName })
-    
-    // Render active pinned devices
     for device in pinnedDevices {
         if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
             pinnedItems[index].button?.title = "\(device.batteryLevel)\(device.isCharging != 0  ? "⚡︎" : "%")"
@@ -540,28 +518,7 @@ func refeshPinnedBar(unpin: String? = nil) {
             pinnedItems.append(statusItem)
         }
     }
-    
-    // Render ghost devices
-    for (deviceName, _) in ghostItems {
-        if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == deviceName }) {
-            pinnedItems[index].button?.title = "Disconnected".local
-        } else {
-            // This case ideally shouldn't happen if it was already pinned, but for safety:
-            let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = statusItem.button {
-                button.title = "Disconnected".local
-                button.toolTip = deviceName
-                button.target = NSApp.delegate as? AppDelegate
-                button.action = #selector(AppDelegate.togglePopover(_:))
-            }
-            pinnedItems.append(statusItem)
-        }
-    }
-
-    let expItems = pinnedItems.filter({ 
-        let toolTip = $0.button?.toolTip ?? ""
-        return (!pinnedList.contains(toolTip) || (!deviceNames.contains(toolTip) && ghostItems[toolTip] == nil))
-    })
+    let expItems = pinnedItems.filter({ !pinnedList.contains($0.button?.toolTip ?? "") || !deviceNames.contains($0.button?.toolTip ?? "") })
     let expNames = expItems.map({ $0.button?.toolTip ?? "" })
     DispatchQueue.main.async { for e in expItems { NSStatusBar.system.removeStatusItem(e) } }
     pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
@@ -583,21 +540,6 @@ func refeshPinnedBar(unpin: String? = nil) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
         } else if !shouldHideMain && !mainIsVisible {
             // No device icons (or feature disabled) → show main icon immediately
-            statusBarItem.isVisible = true
-        } else if shouldHideMain && !mainIsVisible && !ghostItems.isEmpty {
-            // If we are hiding main but showing ghosts, ensure main becomes visible immediately 
-            // if we are about to transition away from ghosts eventually, but for now 
-            // actually, if ghosts are visible, they ARE pinned items, so shouldHideMain is true.
-            // The problem is when the LAST ghost disappears.
-        }
-        
-        // Ensure main icon is visible if we only have ghosts left and they are about to expire,
-        // or more simply, if we are in a state where pinnedItems only contains ghosts.
-        if !pinnedDevices.isEmpty {
-            // We have real devices, main icon visibility is handled by hideMainWhenPinned
-        } else if !ghostItems.isEmpty {
-            // We only have ghost items. We should show the main icon immediately 
-            // to ensure transition is smooth when the ghost finally disappears.
             statusBarItem.isVisible = true
         }
     }
