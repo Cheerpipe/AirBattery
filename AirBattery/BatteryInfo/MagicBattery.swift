@@ -10,22 +10,43 @@ import IOBluetooth
 
 class SPBluetoothDataModel {
     static var shared: SPBluetoothDataModel = SPBluetoothDataModel()
-    var data: String = "{}"
+    private let lock = NSLock()
+    private var storedData: String = "{}"
     private var lastUpdate: Date = Date(timeIntervalSince1970: 0)
+
+    var data: String {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedData
+        }
+        set {
+            lock.lock()
+            storedData = newValue
+            lock.unlock()
+        }
+    }
     
     func refeshData(completion: (String) -> Void, error: (() -> Void)? = nil) {
         let uptime = Date().timeIntervalSince(appStartTime)
         let now = Date()
-        
+
+        lock.lock()
+        let cachedData = storedData
+        let shouldUseCache = uptime > 60 && now.timeIntervalSince(lastUpdate) < 60
+        lock.unlock()
+
         // After 60s of uptime, throttle to once per 60s
-        if uptime > 60 && now.timeIntervalSince(lastUpdate) < 60 {
-            completion(data)
+        if shouldUseCache {
+            completion(cachedData)
             return
         }
         
         if let result = process(path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"]) {
-            data = result
+            lock.lock()
+            storedData = result
             lastUpdate = now
+            lock.unlock()
             completion(result)
         } else {
             error?()

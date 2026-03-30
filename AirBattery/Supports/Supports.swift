@@ -49,17 +49,18 @@ class LogReader {
         isRunning = true
         lock.unlock()
 
+        let environment: [String: String]
         let args: [String]
         if let start = computeStart(trigger) {
-            setenv("START_TS", start, 1)
+            environment = ["START_TS": start]
             args = ["\(Bundle.main.resourcePath!)/logReader.sh", "mac", "10m"]
         } else {
-            unsetenv("START_TS")
+            environment = [:]
             let win = (trigger == .bootstrap) ? "20m" : (trigger == .wake ? "3m" : "2m")
             args = ["\(Bundle.main.resourcePath!)/logReader.sh", "mac", win]
         }
 
-        let out = process(path: "/bin/bash", arguments: args, timeout: 5)
+        let out = process(path: "/bin/bash", arguments: args, timeout: 5, environment: environment)
         parseAndUpdate(output: out)
         advanceLastTS()
 
@@ -210,10 +211,13 @@ struct RoundedCornersShape: Shape {
     }
 }
 
-public func process(path: String, arguments: [String], timeout: Int = 0) -> String? {
+public func process(path: String, arguments: [String], timeout: Int = 0, environment: [String: String] = [:]) -> String? {
     let task = Process()
     task.launchPath = path
     task.arguments = arguments
+    if !environment.isEmpty {
+        task.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+    }
     task.standardError = Pipe()
 
     let outputPipe = Pipe()
