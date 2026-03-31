@@ -211,10 +211,15 @@ struct RoundedCornersShape: Shape {
     }
 }
 
-public func process(path: String, arguments: [String], timeout: Int = 0, environment: [String: String] = [:]) -> String? {
+public func process(path: String, arguments: [String], timeout: Int = 0, environment: [String: String] = [:], lowPriority: Bool = false) -> String? {
     let task = Process()
-    task.launchPath = path
-    task.arguments = arguments
+    if lowPriority {
+        task.launchPath = "/usr/bin/nice"
+        task.arguments = ["-n", "15", path] + arguments
+    } else {
+        task.launchPath = path
+        task.arguments = arguments
+    }
     if !environment.isEmpty {
         task.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
     }

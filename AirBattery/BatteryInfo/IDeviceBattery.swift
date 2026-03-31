@@ -23,7 +23,7 @@ class IDeviceBattery {
     }
     
     @objc func scanDevices() {
-        Thread.detachNewThread {
+        DispatchQueue.global(qos: .utility).async {
             if !self.readIDevice { return }
             self.getIDeviceBattery()
         }
@@ -31,8 +31,8 @@ class IDeviceBattery {
     
     func getPencil(d: Device, type: String = "") {
         if d.deviceType == "iPad" && readPencil {
-            Thread.detachNewThread {
-                if let result = process(path: "/bin/bash", arguments: ["\(Bundle.main.resourcePath!)/logReader.sh", "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevicesyslog", type, d.deviceID], timeout: 11 * self.updateInterval) {
+            DispatchQueue.global(qos: .utility).async {
+                if let result = process(path: "/bin/bash", arguments: ["\(Bundle.main.resourcePath!)/logReader.sh", "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevicesyslog", type, d.deviceID], timeout: 11 * self.updateInterval, lowPriority: true) {
                     if let json = try? JSONSerialization.jsonObject(with: Data(result.utf8), options: []) as? [String: Any] {
                         if let level = json["level"] as? Int, let model = json["model"] as? String, let vendor = json["vendor"] as? String {
                             let status = (json["status"] as? Int) ?? 0
@@ -46,7 +46,7 @@ class IDeviceBattery {
     }
     
     func getIDeviceBattery() {
-        if let result = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevice_id", arguments: ["-n"]) {
+        if let result = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevice_id", arguments: ["-n"], lowPriority: true) {
             for id in result.components(separatedBy: .newlines) {
                 if let d = AirBatteryModel.getByID(id) {
                     if (Double(Date().timeIntervalSince1970) - d.lastUpdate) > Double(60 * updateInterval) { writeBatteryInfo(id, "-n") }
@@ -56,7 +56,7 @@ class IDeviceBattery {
                 }
             }
         }
-        if let result = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevice_id", arguments: ["-l"]) {
+        if let result = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/idevice_id", arguments: ["-l"], lowPriority: true) {
             for id in result.components(separatedBy: .newlines) {
                 if let d = AirBatteryModel.getByID(id) {
                     if (Double(Date().timeIntervalSince1970) - d.lastUpdate) > Double(60 * updateInterval) { writeBatteryInfo(id, "") }
@@ -71,18 +71,18 @@ class IDeviceBattery {
     func writeBatteryInfo(_ id: String, _ connectType: String) {
         //print("ℹ️ Getting Battery Info for \(id)")
         let lastUpdate = Date().timeIntervalSince1970
-        if connectType == "" { _ = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/wificonnection", arguments: ["-u", id, "true"]) }
-        if let deviceInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/ideviceinfo", arguments: [connectType, "-u", id]){
+        if connectType == "" { _ = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/wificonnection", arguments: ["-u", id, "true"], lowPriority: true) }
+        if let deviceInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/ideviceinfo", arguments: [connectType, "-u", id], lowPriority: true){
             let i = deviceInfo.components(separatedBy: .newlines)
             if let deviceName = i.filter({ $0.contains("DeviceName") }).first?.components(separatedBy: ": ").last,
                let model = i.filter({ $0.contains("ProductType") }).first?.components(separatedBy: ": ").last,
                let type = i.filter({ $0.contains("DeviceClass") }).first?.components(separatedBy: ": ").last {
-                if let batteryInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/ideviceinfo", arguments: [connectType, "-u", id, "-q", "com.apple.mobile.battery"]) {
+                if let batteryInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/ideviceinfo", arguments: [connectType, "-u", id, "-q", "com.apple.mobile.battery"], lowPriority: true) {
                     let b = batteryInfo.components(separatedBy: .newlines)
                     if let level = b.filter({ $0.contains("BatteryCurrentCapacity") }).first?.components(separatedBy: ": ").last,
                        let charging = b.filter({ $0.contains("BatteryIsCharging") }).first!.components(separatedBy: ": ").last {
                         AirBatteryModel.updateDevice(Device(deviceID: id, deviceType: type, deviceName: deviceName, deviceModel: model, batteryLevel: Int(level)!, isCharging: Bool(charging)! ? 1 : 0, lastUpdate: lastUpdate))
-                        if let watchInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/comptest", arguments: [id]) {
+                        if let watchInfo = process(path: "\(Bundle.main.resourcePath!)/libimobiledevice/bin/comptest", arguments: [id], lowPriority: true) {
                             let w = watchInfo.components(separatedBy: .newlines)
                             if let watchID = w.filter({ $0.contains("Checking watch") }).first?.components(separatedBy: " ").last,
                                let watchName = w.filter({ $0.contains("DeviceName") }).first?.components(separatedBy: ": ").last,
