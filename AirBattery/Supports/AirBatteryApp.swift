@@ -498,115 +498,111 @@ public extension UserDefaults {
 }
 
 func refeshPinnedBar(unpin: String? = nil) {
-    guard statusBarItem != nil else { return }
-    var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-    var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
-    
-    if pinnedList.isEmpty && alwaysPinnedList.isEmpty {
-        // Remove all current pinned items if both lists are empty
-        let expNames = pinnedItems.map({ $0.button?.toolTip ?? "" })
-        DispatchQueue.main.async { for e in pinnedItems { NSStatusBar.system.removeStatusItem(e) } }
-        pinnedItems.removeAll()
-        updateMainIconVisibility()
-        return
-    }
-    
-    if let unpin = unpin {
-        pinnedList.removeAll(where: { $0 == unpin })
-        alwaysPinnedList.removeAll(where: { $0 == unpin })
-    }
-    
-    let now = Date().timeIntervalSince1970
-    let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
-    var allDevices = AirBatteryModel.getAll(noFilter: true)
-    let ncFiles = getFiles(withExtension: "json", in: ncFolder)
-    for ncFile in ncFiles { allDevices += AirBatteryModel.ncGetAll(url: ncFile) }
-    
-    // Combined list of names to manage
-    let allPinnedNames = Array(Set(pinnedList + alwaysPinnedList))
-    
-    for name in allPinnedNames {
-        let isAlwaysPinned = alwaysPinnedList.contains(name)
-        let device = allDevices.first(where: { $0.deviceName == name })
+    DispatchQueue.main.async {
+        guard statusBarItem != nil else { return }
+        var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+        var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
         
-        if let device = device {
-            // Device is in the "allDevices" list (within 20 mins of last update)
-            // But for standard pins, we want a stricter "active" check (e.g. 2 mins)
-            let isStale = (now - device.lastUpdate > 120) // 2 minutes timeout for "disappearing"
+        if pinnedList.isEmpty && alwaysPinnedList.isEmpty {
+            // Remove all current pinned items if both lists are empty
+            for e in pinnedItems { NSStatusBar.system.removeStatusItem(e) }
+            pinnedItems.removeAll()
+            updateMainIconVisibility()
+            return
+        }
+        
+        if let unpin = unpin {
+            pinnedList.removeAll(where: { $0 == unpin })
+            alwaysPinnedList.removeAll(where: { $0 == unpin })
+        }
+        
+        let now = Date().timeIntervalSince1970
+        let disappearTime = (ud.object(forKey: "disappearTime") as? Int) ?? 20
+        var allDevices = AirBatteryModel.getAll(noFilter: true)
+        let ncFiles = getFiles(withExtension: "json", in: ncFolder)
+        for ncFile in ncFiles { allDevices += AirBatteryModel.ncGetAll(url: ncFile) }
+        
+        // Combined list of names to manage
+        let allPinnedNames = Array(Set(pinnedList + alwaysPinnedList))
+        
+        for name in allPinnedNames {
+            let isAlwaysPinned = alwaysPinnedList.contains(name)
+            let device = allDevices.first(where: { $0.deviceName == name })
             
-            if !isStale {
-                updateOrAddStatusItem(for: device, opacity: 1.0, showText: true)
+            if let device = device {
+                let isStale = (now - device.lastUpdate > 120) // 2 minutes timeout
+                
+                if !isStale {
+                    updateOrAddStatusItem(for: device, opacity: 1.0, showText: true)
+                } else if isAlwaysPinned {
+                    updateOrAddStatusItem(for: device, opacity: 0.7, showText: false)
+                }
             } else if isAlwaysPinned {
-                updateOrAddStatusItem(for: device, opacity: 0.7, showText: false)
-            }
-        } else if isAlwaysPinned {
-            // Device is completely gone from the list, but always pinned
-            if let hDevice = AirBatteryModel.getAnyByName(name) {
-                updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
+                if let hDevice = AirBatteryModel.getAnyByName(name) {
+                    updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
+                }
             }
         }
-    }
-    
-    // Cleanup items that are no longer in either list or are disconnected standard pins
-    let activePinnedNames = allPinnedNames.filter { name in
-        if let device = allDevices.first(where: { $0.deviceName == name }) {
-            let isStale = (now - device.lastUpdate > 120)
-            return alwaysPinnedList.contains(name) || !isStale
+        
+        // Cleanup expired items
+        let activePinnedNames = allPinnedNames.filter { name in
+            if let device = allDevices.first(where: { $0.deviceName == name }) {
+                let isStale = (now - device.lastUpdate > 120)
+                return alwaysPinnedList.contains(name) || !isStale
+            }
+            return alwaysPinnedList.contains(name)
         }
-        return alwaysPinnedList.contains(name)
-    }
-    
-    let expItems = pinnedItems.filter({ !activePinnedNames.contains($0.button?.toolTip ?? "") })
-    let expNames = expItems.map({ $0.button?.toolTip ?? "" })
-    DispatchQueue.main.async { for e in expItems { NSStatusBar.system.removeStatusItem(e) } }
-    pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
+        
+        let expItems = pinnedItems.filter({ !activePinnedNames.contains($0.button?.toolTip ?? "") })
+        let expNames = expItems.map({ $0.button?.toolTip ?? "" })
+        for e in expItems { NSStatusBar.system.removeStatusItem(e) }
+        pinnedItems.removeAll{ expNames.contains($0.button?.toolTip ?? "") }
 
-    updateMainIconVisibility()
+        updateMainIconVisibility()
+    }
 }
 
 func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool) {
-    let title = showText ? "\(device.batteryLevel)\(device.isCharging != 0 ? "⚡︎" : "%")" : ""
-    
-    if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
-        let button = pinnedItems[index].button
-        button?.title = title
-        if let icon = button?.image {
-            // Re-apply icon with potentially different opacity if needed
-            // Actually, we should probably recreate the image if opacity changed significantly
-            let baseImage = NSImage(named: getDeviceIcon(device))!
-            let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
-            resized.isTemplate = true
-            
-            // Apply opacity
-            let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
-                resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
-                return true
+    DispatchQueue.main.async {
+        let title = showText ? "\(device.batteryLevel)\(device.isCharging != 0 ? "⚡︎" : "%")" : ""
+        
+        if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
+            let button = pinnedItems[index].button
+            button?.title = title
+            if let _ = button?.image {
+                let baseImage = NSImage(named: getDeviceIcon(device))!
+                let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
+                resized.isTemplate = true
+                
+                let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
+                    resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    return true
+                }
+                opaqueImage.isTemplate = true
+                button?.image = opaqueImage
             }
-            opaqueImage.isTemplate = true
-            button?.image = opaqueImage
-        }
-    } else {
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            let icon = getDeviceIcon(device)
-            let baseImage = NSImage(named: icon)!
-            let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
-            resized.isTemplate = true
-            
-            // Apply opacity
-            let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
-                resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
-                return true
+        } else {
+            let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = statusItem.button {
+                let icon = getDeviceIcon(device)
+                let baseImage = NSImage(named: icon)!
+                let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
+                resized.isTemplate = true
+                
+                let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
+                    resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    return true
+                }
+                opaqueImage.isTemplate = true
+                
+                button.image = opaqueImage
+                button.title = title
+                button.toolTip = device.deviceName
+                button.target = NSApp.delegate as? AppDelegate
+                button.action = #selector(AppDelegate.togglePopover(_:))
             }
-            opaqueImage.isTemplate = true
-            
-            button.image = opaqueImage
-            button.title = title
-            button.toolTip = device.deviceName
-            button.target = NSApp.delegate as? AppDelegate
-            button.action = #selector(AppDelegate.togglePopover(_:))
+            pinnedItems.append(statusItem)
         }
-        pinnedItems.append(statusItem)
     }
 }
 

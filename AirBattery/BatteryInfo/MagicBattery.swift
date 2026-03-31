@@ -13,6 +13,7 @@ class SPBluetoothDataModel {
     private let lock = NSLock()
     private var storedData: String = "{}"
     private var lastUpdate: Date = Date(timeIntervalSince1970: 0)
+    private var isRefreshing: Bool = false
 
     var data: String {
         get {
@@ -28,27 +29,34 @@ class SPBluetoothDataModel {
     }
     
     func refeshData(completion: (String) -> Void, error: (() -> Void)? = nil) {
-        let uptime = Date().timeIntervalSince(appStartTime)
-        let now = Date()
-
         lock.lock()
         let cachedData = storedData
+        let now = Date()
+        let uptime = Date().timeIntervalSince(appStartTime)
         let shouldUseCache = uptime > 60 && now.timeIntervalSince(lastUpdate) < 60
-        lock.unlock()
-
-        // After 60s of uptime, throttle to once per 60s
-        if shouldUseCache {
-            completion(cachedData)
+        
+        // If already refreshing, or cache is valid, return current data
+        if shouldUseCache || isRefreshing {
+            let dataToReturn = cachedData
+            lock.unlock()
+            completion(dataToReturn)
             return
         }
+        
+        isRefreshing = true
+        lock.unlock()
         
         if let result = process(path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"], lowPriority: true) {
             lock.lock()
             storedData = result
             lastUpdate = now
+            isRefreshing = false
             lock.unlock()
             completion(result)
         } else {
+            lock.lock()
+            isRefreshing = false
+            lock.unlock()
             error?()
         }
     }
@@ -75,7 +83,7 @@ class MagicBattery {
             SPBluetoothDataModel.shared.refeshData { result in
                 if self.readBTDevice {
                     let bluetoothJson = try? JSONSerialization.jsonObject(with: Data(result.utf8), options: []) as? [String: Any]
-                    self.getIOBTBattery()
+                    self.getIOBTBattery(json: bluetoothJson)
                     self.getOtherBTBattery(json: bluetoothJson)
                     self.getMagicBattery(json: bluetoothJson)
                     self.getOldMagicKeyboard(json: bluetoothJson)
@@ -365,7 +373,7 @@ class MagicBattery {
         }
     }
     
-    func getIOBTBattery() {
+    func getIOBTBattery(json: [String: Any]? = nil) {
         if let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] {
             for device in devices {
                 let name = device.name
@@ -375,8 +383,8 @@ class MagicBattery {
                 
                 if connected && !device.isAppleDevice {
                     if let battery = device.getValue(forKey: "batteryPercentSingle") as? Int, let name = name, let address = address, battery != 0 {
-                        // We don't have the global JSON here, but getDeviceType will handle it
-                        let type = getDeviceType(address.replacingOccurrences(of: "-", with: ":").uppercased(),"", json: nil)
+                        // Pass JSON to avoid re-parsing for type lookup
+                        let type = getDeviceType(address.replacingOccurrences(of: "-", with: ":").uppercased(),"", json: json)
                         AirBatteryModel.updateDevice(Device(deviceID: address, deviceType: type, deviceName: name, batteryLevel: battery, isCharging: 0, lastUpdate: Date().timeIntervalSince1970))
                     }
                     //let left = device.getValue(forKey: "batteryPercentLeft") as? Int

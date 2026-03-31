@@ -213,8 +213,9 @@ struct RoundedCornersShape: Shape {
 
 public func process(path: String, arguments: [String], timeout: Int = 0, environment: [String: String] = [:], lowPriority: Bool = false) -> String? {
     let task = Process()
-    if lowPriority {
-        task.launchPath = "/usr/bin/nice"
+    let nicePath = "/usr/bin/nice"
+    if lowPriority && FileManager.default.fileExists(atPath: nicePath) {
+        task.launchPath = nicePath
         task.arguments = ["-n", "15", path] + arguments
     } else {
         task.launchPath = path
