@@ -756,61 +756,6 @@ struct popover: View {
                         }
                     }
                 }
-                VStack(spacing: 0) {
-                    Divider()
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 4)
-                    
-                    Button(action: {
-                        dockWindow.orderOut(nil)
-                        statusBarItem.menu?.cancelTracking()
-                        openSettingPanel()
-                    }) {
-                        HStack {
-                            Text("Settings...".local)
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(overSettButton ? Color.primary.opacity(0.1) : Color.clear).cornerRadius(4)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .onHover{ hovering in
-                        overSettButton = hovering
-                        if hovering {
-                            overStack = -1
-                            overStack2 = -1
-                            overStackNC = -1
-                        }
-                    }
-                    
-                    Button(action: {
-                        NSApp.terminate(nil)
-                    }) {
-                        HStack {
-                            Text("Quit".local)
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(overQuitButton ? Color.primary.opacity(0.1) : Color.clear).cornerRadius(4)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .onHover{ hovering in
-                        overQuitButton = hovering
-                        if hovering {
-                            overStack = -1
-                            overStack2 = -1
-                            overStackNC = -1
-                        }
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.bottom, 6)
                 
                 if !fromDock {
                     Color.clear

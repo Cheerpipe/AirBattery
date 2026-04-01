@@ -90,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     
     //var statusMenu: NSMenu = NSMenu()
     var menu: NSMenu = NSMenu()
+    var contextMenu: NSMenu = NSMenu()
     var startTime = Date()
     let nc = NSWorkspace.shared.notificationCenter
     
@@ -207,6 +208,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         menu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
         menu.addItem(withTitle:"About AirBattery".local, action: #selector(openAbout), keyEquivalent: "")
         
+        contextMenu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
+        contextMenu.addItem(withTitle:"Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        
         //处理旧版偏好设置
         if let alertList = (ud.object(forKey: "alertList") ?? []) as? [String] {
             let alerts: [btAlert] = alertList.map({
@@ -271,6 +275,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
             button.image = NSImage()
             button.addSubview(iconView)
             button.frame = iconView.frame
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.action = #selector(togglePopover(_ :))
         }
         statusBarItem.isVisible = !(showOn == "dock" || showOn == "none")
@@ -392,6 +397,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     }*/
     
     @objc func togglePopover(_ sender: Any?) {
+        if let event = NSApp.currentEvent, event.type == .rightMouseUp {
+            if let button = sender as? NSButton {
+                contextMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+            }
+            return
+        }
+        
         if menuPopover.isShown {
             menuPopover.performClose(sender)
             return
@@ -617,6 +629,7 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                 button.title = title
                 button.toolTip = device.deviceName
                 button.target = NSApp.delegate as? AppDelegate
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
                 button.action = #selector(AppDelegate.togglePopover(_:))
             }
             pinnedItems.append(statusItem)
