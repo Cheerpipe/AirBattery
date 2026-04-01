@@ -574,11 +574,20 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                 let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
                 resized.isTemplate = true
                 
+                let colorName = getPowerColor(device)
+                let isColored = (device.batteryLevel <= 20) && (device.batteryLevel > 0)
+                
                 let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
-                    resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    if isColored, let color = NSColor(named: colorName) {
+                        color.set()
+                        rect.fill()
+                        resized.draw(in: rect, from: .zero, operation: .destinationIn, fraction: opacity)
+                    } else {
+                        resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    }
                     return true
                 }
-                opaqueImage.isTemplate = true
+                opaqueImage.isTemplate = !isColored
                 button?.image = opaqueImage
             }
         } else {
@@ -589,11 +598,20 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                 let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
                 resized.isTemplate = true
                 
+                let colorName = getPowerColor(device)
+                let isColored = (device.batteryLevel <= 20) && (device.batteryLevel > 0)
+                
                 let opaqueImage = NSImage(size: resized.size, flipped: false) { rect in
-                    resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    if isColored, let color = NSColor(named: colorName) {
+                        color.set()
+                        rect.fill()
+                        resized.draw(in: rect, from: .zero, operation: .destinationIn, fraction: opacity)
+                    } else {
+                        resized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: opacity)
+                    }
                     return true
                 }
-                opaqueImage.isTemplate = true
+                opaqueImage.isTemplate = !isColored
                 
                 button.image = opaqueImage
                 button.title = title

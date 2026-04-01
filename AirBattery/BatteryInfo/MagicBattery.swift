@@ -46,7 +46,7 @@ class SPBluetoothDataModel {
         isRefreshing = true
         lock.unlock()
         
-        if let result = process(path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"], lowPriority: true) {
+        if let result = process(path: "/usr/sbin/system_profiler", arguments: ["SPBluetoothDataType", "-json"], timeout: 30, lowPriority: true) {
             lock.lock()
             storedData = result
             lastUpdate = now

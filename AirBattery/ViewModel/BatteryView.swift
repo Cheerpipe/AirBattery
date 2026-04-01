@@ -84,7 +84,7 @@ struct mainBatteryView: View {
                                 .offset(x: item.batteryLevel < 100 ? -1 : -0.5)
                         } else {
                             Rectangle()
-                                .fill(colorfulBattery ? Color(getPowerColor(ib2ab(item))) : (item.batteryLevel <= 10 ? .red : .primary))
+                                .fill((colorfulBattery || item.batteryLevel <= 20) ? Color(getPowerColor(ib2ab(item))) : .primary)
                                 .frame(width: width, height: 8, alignment: .leading)
                                 .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
                                 .offset(x:2)
@@ -113,7 +113,7 @@ struct mainBatteryView: View {
                             )
                         Image("battery.100percent")
                             .resizable().scaledToFit()
-                            .foregroundColor(colorfulBattery ? Color(getPowerColor(ib2ab(item)) + "2") : (item.batteryLevel <= 10 ? .red : .primary))
+                            .foregroundColor((colorfulBattery || item.batteryLevel <= 20) ? Color(getPowerColor(ib2ab(item)) + (colorfulBattery ? "2" : "")) : .primary)
                             .frame(width: 27)
                             .mask (
                                 HStack {
