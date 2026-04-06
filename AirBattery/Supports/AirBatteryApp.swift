@@ -514,6 +514,7 @@ func refeshPinnedBar(unpin: String? = nil) {
         guard statusBarItem != nil else { return }
         var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
         var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+        let persistedDevices = AirBatteryModel.readData()
         
         if pinnedList.isEmpty && alwaysPinnedList.isEmpty {
             // Remove all current pinned items if both lists are empty
@@ -550,8 +551,12 @@ func refeshPinnedBar(unpin: String? = nil) {
                     updateOrAddStatusItem(for: device, opacity: 0.7, showText: false)
                 }
             } else if isAlwaysPinned {
-                if let hDevice = AirBatteryModel.getAnyByName(name) {
+                if let hDevice = AirBatteryModel.getAnyByName(name) ?? persistedDevices.first(where: { $0.deviceName == name }) {
                     updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
+                } else {
+                    // Show permanently pinned items at launch even before first detection.
+                    let placeholder = Device(hasBattery: false, deviceID: "@PinnedPlaceholder:\(name)", deviceType: "PinnedPlaceholder", deviceName: name, batteryLevel: 0, isCharging: 0, lastUpdate: 0)
+                    updateOrAddStatusItem(for: placeholder, opacity: 0.7, showText: false)
                 }
             }
         }
