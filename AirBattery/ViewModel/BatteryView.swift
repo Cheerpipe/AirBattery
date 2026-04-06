@@ -227,8 +227,10 @@ func setStatusBar(width: CGFloat) {
     if statusBarItem.button?.frame.size.width == width && statusBarItem.button?.subviews.count ?? 0 > 0 {
         return
     }
-    let iconView = NSHostingView(rootView: mainBatteryView())
+    let iconView = StatusBarHostingView(rootView: mainBatteryView())
     iconView.frame = NSRect(x: 0, y: 0, width: width, height: 21.5)
+    statusBarItem.button?.appearsDisabled = false
+    statusBarItem.button?.image = nil
     statusBarItem.button?.subviews.removeAll()
     statusBarItem.button?.addSubview(iconView)
     statusBarItem.button?.frame = iconView.frame

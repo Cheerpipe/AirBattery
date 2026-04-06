@@ -266,13 +266,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         if let button = statusBarItem.button {
             button.target = self
             let ib = getPowerState()
-            let iconView = NSHostingView(rootView: mainBatteryView())
+            let iconView = StatusBarHostingView(rootView: mainBatteryView())
             if ib.hasBattery && intBattOnStatusBar {
                 iconView.frame = NSRect(x: 0, y: 0, width: 42, height: 21.5)
             } else {
                 iconView.frame = NSRect(x: 0, y: 0, width: 36, height: 21.5)
             }
-            button.image = NSImage()
+            button.appearsDisabled = false
+            button.image = nil
             button.addSubview(iconView)
             button.frame = iconView.frame
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -462,6 +463,10 @@ class NNSWindow: NSWindow {
     }
 }
 
+final class StatusBarHostingView<Content: View>: NSHostingView<Content> {
+    override var allowsVibrancy: Bool { false }
+}
+
 class AutoHideWindow: NSWindow {
     override var canBecomeKey: Bool {
         return true
@@ -586,10 +591,10 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
         if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
             let button = pinnedItems[index].button
             button?.title = title
+            button?.appearsDisabled = false
             if let _ = button?.image {
                 let baseImage = NSImage(named: getDeviceIcon(device))!
                 let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
-                resized.isTemplate = true
                 
                 let colorName = getPowerColor(device)
                 let isColored = (device.batteryLevel <= 20) && (device.batteryLevel > 0)
@@ -604,6 +609,7 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                     }
                     return true
                 }
+                // Native look: let macOS tint monochrome status icons.
                 opaqueImage.isTemplate = !isColored
                 button?.image = opaqueImage
             }
@@ -613,7 +619,6 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                 let icon = getDeviceIcon(device)
                 let baseImage = NSImage(named: icon)!
                 let resized = baseImage.resized(to: NSSize(width: 17, height: 17))
-                resized.isTemplate = true
                 
                 let colorName = getPowerColor(device)
                 let isColored = (device.batteryLevel <= 20) && (device.batteryLevel > 0)
@@ -633,6 +638,7 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
                 button.image = opaqueImage
                 button.title = title
                 button.toolTip = device.deviceName
+                button.appearsDisabled = false
                 button.target = NSApp.delegate as? AppDelegate
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
                 button.action = #selector(AppDelegate.togglePopover(_:))
