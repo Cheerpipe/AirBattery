@@ -17,6 +17,7 @@ let ud = UserDefaults.standard
 var updaterController: SPUStandardUpdaterController!
 var statusBarItem: NSStatusItem!
 var pinnedItems = [NSStatusItem]()
+var temporarilyHiddenDevices: Set<String> = []
 var netcastService: MultipeerService = MultipeerService(serviceType: "airbattery-nc")
 let ncFolder = fd.urls(for: .libraryDirectory, in: .userDomainMask).first!.appendingPathComponent("Containers/\(AirBatteryModel.key)/Data/Documents/NearcastData")
 let systemUUID = getMacDeviceUUID()
@@ -397,9 +398,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         statusMenu.addItem(menuItem)
     }*/
     
+    @objc func hideDevice(_ sender: NSMenuItem) {
+        if let deviceName = sender.representedObject as? String {
+            temporarilyHiddenDevices.insert(deviceName)
+            refeshPinnedBar()
+        }
+    }
+    
     @objc func togglePopover(_ sender: Any?) {
         if let event = NSApp.currentEvent, event.type == .rightMouseUp {
             if let button = sender as? NSButton {
+                contextMenu.removeAllItems()
+                if let deviceName = button.toolTip {
+                    let alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                    if alwaysPinnedList.contains(deviceName) {
+                        let now = Date().timeIntervalSince1970
+                        let allDevices = AirBatteryModel.getAll(noFilter: true)
+                        let isStale: Bool
+                        if let device = allDevices.first(where: { $0.deviceName == deviceName }) {
+                            isStale = (now - device.lastUpdate > 120)
+                        } else {
+                            isStale = true
+                        }
+                        
+                        if isStale {
+                            let hideItem = NSMenuItem(title: "Ocultar".local, action: #selector(hideDevice(_:)), keyEquivalent: "")
+                            hideItem.representedObject = deviceName
+                            if #available(macOS 11.0, *) {
+                                hideItem.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
+                            }
+                            contextMenu.addItem(hideItem)
+                            contextMenu.addItem(NSMenuItem.separator())
+                        }
+                    }
+                }
+                
+                contextMenu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
+                contextMenu.addItem(withTitle:"Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+                
                 contextMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
             }
             return
@@ -563,9 +599,11 @@ func refeshPinnedBar(unpin: String? = nil) {
                 }
                 
                 if !isStale {
-                    updateOrAddStatusItem(for: device, opacity: 1.0, showText: true)
+                    temporarilyHiddenDevices.remove(name)
+                    updateOrAddStatusItem(for: device, opacity: 1.0, showText: true, isHidden: false)
                 } else if isAlwaysPinned {
-                    updateOrAddStatusItem(for: device, opacity: 0.7, showText: false)
+                    let hidden = temporarilyHiddenDevices.contains(name)
+                    updateOrAddStatusItem(for: device, opacity: 0.7, showText: false, isHidden: hidden)
                 }
             } else if isAlwaysPinned {
                 if let hDevice = AirBatteryModel.getAnyByName(name) ?? persistedDevices.first(where: { $0.deviceName == name }) {
@@ -576,7 +614,7 @@ func refeshPinnedBar(unpin: String? = nil) {
                         savedInfo[name] = info
                         savedInfoChanged = true
                     }
-                    updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
+                    updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false, isHidden: temporarilyHiddenDevices.contains(name))
                 } else {
                     // Show permanently pinned items at launch even before first detection.
                     // Use saved device info for correct icon rendering.
@@ -584,7 +622,7 @@ func refeshPinnedBar(unpin: String? = nil) {
                     let deviceType = info?["deviceType"] ?? "PinnedPlaceholder"
                     let deviceModel = info?["deviceModel"]
                     let placeholder = Device(hasBattery: false, deviceID: "@PinnedPlaceholder:\(name)", deviceType: deviceType, deviceName: name, deviceModel: deviceModel, batteryLevel: 0, isCharging: 0, lastUpdate: 0)
-                    updateOrAddStatusItem(for: placeholder, opacity: 0.7, showText: false)
+                    updateOrAddStatusItem(for: placeholder, opacity: 0.7, showText: false, isHidden: temporarilyHiddenDevices.contains(name))
                 }
             }
         }
@@ -597,7 +635,8 @@ func refeshPinnedBar(unpin: String? = nil) {
         let activePinnedNames = allPinnedNames.filter { name in
             if let device = allDevices.first(where: { $0.deviceName == name }) {
                 let isStale = (now - device.lastUpdate > 120)
-                return alwaysPinnedList.contains(name) || !isStale
+                if !isStale { return alwaysPinnedList.contains(name) || true }
+                return alwaysPinnedList.contains(name)
             }
             return alwaysPinnedList.contains(name)
         }
@@ -611,11 +650,12 @@ func refeshPinnedBar(unpin: String? = nil) {
     }
 }
 
-func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool) {
+func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool, isHidden: Bool = false) {
     DispatchQueue.main.async {
         let title = showText ? "\(device.batteryLevel)\(device.isCharging != 0 ? "⚡︎" : "%")" : ""
         
         if let index = pinnedItems.firstIndex(where: { $0.button?.toolTip == device.deviceName }) {
+            pinnedItems[index].isVisible = !isHidden
             let button = pinnedItems[index].button
             button?.title = title
             button?.appearsDisabled = false
@@ -642,6 +682,7 @@ func updateOrAddStatusItem(for device: Device, opacity: CGFloat, showText: Bool)
             }
         } else {
             let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            statusItem.isVisible = !isHidden
             if let button = statusItem.button {
                 let icon = getDeviceIcon(device)
                 let baseImage = NSImage(named: icon)!
