@@ -24,7 +24,9 @@ class BTDBattery {
     @objc func scanDevices(longScan: Bool = false) {
         Thread.detachNewThread {
             if self.readBTHID {
-                if longScan { BTDBattery.getOtherDevice(last: "2h", timeout: 25) }
+                // Periodically refresh discovery data so devices that appear later
+                // (or return after being away) can be found without app restart.
+                BTDBattery.getOtherDevice(last: longScan ? "2h" : "10m", timeout: longScan ? 25 : 5)
                 let connects = BTDBattery.getConnected()
                 let names = BTDBattery.allDevices.filter({ connects.contains($0) })
                 for name in names {

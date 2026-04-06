@@ -28,12 +28,12 @@ class SPBluetoothDataModel {
         }
     }
     
-    func refeshData(completion: (String) -> Void, error: (() -> Void)? = nil) {
+    func refeshData(force: Bool = false, completion: (String) -> Void, error: (() -> Void)? = nil) {
         lock.lock()
         let cachedData = storedData
         let now = Date()
         let uptime = Date().timeIntervalSince(appStartTime)
-        let shouldUseCache = uptime > 60 && now.timeIntervalSince(lastUpdate) < 60
+        let shouldUseCache = !force && uptime > 60 && now.timeIntervalSince(lastUpdate) < 60
         
         // If already refreshing, or cache is valid, return current data
         if shouldUseCache || isRefreshing {

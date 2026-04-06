@@ -95,6 +95,7 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     var centralManager: CBCentralManager!
     var peripherals: [CBPeripheral?] = []
+    var connectTimeouts: [UUID: DispatchWorkItem] = [:]
     var otherAppleDevices: [String] = []
     var bleDevicesLevel: [String:UInt8] = [:]
     var bleDevicesVendor: [String:String] = [:]
@@ -144,6 +145,20 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         peripheral.discoverServices(nil)
     }
     
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        clearConnectTimeout(for: peripheral)
+        if let index = self.peripherals.firstIndex(of: peripheral) {
+            self.peripherals.remove(at: index)
+        }
+    }
+    
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        clearConnectTimeout(for: peripheral)
+        if let index = self.peripherals.firstIndex(of: peripheral) {
+            self.peripherals.remove(at: index)
+        }
+    }
+    
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         var get = false
         let now = Double(Date().timeIntervalSince1970)
@@ -171,28 +186,52 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             }
         }
         if get {
+            if self.peripherals.contains(where: { $0?.identifier == peripheral.identifier }) { return }
             self.peripherals.append(peripheral)
+            scheduleConnectTimeout(for: peripheral)
             self.centralManager.connect(peripheral, options: nil)
         }
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if error != nil {
+            clearConnectTimeout(for: peripheral)
+            if let index = self.peripherals.firstIndex(of: peripheral) { self.peripherals.remove(at: index) }
+            self.centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
         //guard let name = peripheral.name else { return }
         //let blockedItems = (ud.object(forKey: "blockedDevices") as? [String]) ?? [String]()
         //if blockedItems.contains(name) && !whitelistMode { return }
         //if !blockedItems.contains(name) && whitelistMode { return }
-        guard let services = peripheral.services else { return }
+        guard let services = peripheral.services else {
+            clearConnectTimeout(for: peripheral)
+            if let index = self.peripherals.firstIndex(of: peripheral) { self.peripherals.remove(at: index) }
+            self.centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
         }
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if error != nil {
+            clearConnectTimeout(for: peripheral)
+            if let index = self.peripherals.firstIndex(of: peripheral) { self.peripherals.remove(at: index) }
+            self.centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
         //guard let name = peripheral.name else { return }
         //let blockedItems = (ud.object(forKey: "blockedDevices") as? [String]) ?? [String]()
         //if blockedItems.contains(name) && !whitelistMode { return }
         //if !blockedItems.contains(name) && whitelistMode { return }
-        guard let characteristics = service.characteristics else { return }
+        guard let characteristics = service.characteristics else {
+            clearConnectTimeout(for: peripheral)
+            if let index = self.peripherals.firstIndex(of: peripheral) { self.peripherals.remove(at: index) }
+            self.centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
         var clear = true
         if service.uuid == CBUUID(string: "180F") || service.uuid == CBUUID(string: "180A") {
             for characteristic in characteristics {
@@ -202,7 +241,10 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 }
             }
         }
-        if clear { if let index = self.peripherals.firstIndex(of: peripheral) { self.peripherals.remove(at: index) } }
+        if clear {
+            // Do not disconnect here. Another service callback may still include
+            // the battery characteristic (2A19) for iPhone/iPad.
+        }
         
     }
     
@@ -236,6 +278,11 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                     AirBatteryModel.updateDevice(device)
                 }
             }
+            clearConnectTimeout(for: peripheral)
+            if let index = self.peripherals.firstIndex(of: peripheral) {
+                self.peripherals.remove(at: index)
+            }
+            self.centralManager.cancelPeripheralConnection(peripheral)
         }
         
         //设备型号
@@ -262,7 +309,31 @@ class BLEBattery: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
                 if let data = characteristic.value, let vendor = data.ascii() { bleDevicesVendor[deviceName] = vendor }
             }
         }
-        //self.centralManager.cancelPeripheralConnection(peripheral)
+        // Keep connection alive until battery characteristic is read,
+        // otherwise iPhone/iPad may disconnect before yielding 2A19.
+    }
+    
+    private func scheduleConnectTimeout(for peripheral: CBPeripheral) {
+        let id = peripheral.identifier
+        clearConnectTimeout(for: peripheral)
+        let timeoutWork = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if self.peripherals.contains(where: { $0?.identifier == id }) {
+                self.centralManager.cancelPeripheralConnection(peripheral)
+                if let index = self.peripherals.firstIndex(where: { $0?.identifier == id }) {
+                    self.peripherals.remove(at: index)
+                }
+            }
+            self.connectTimeouts[id] = nil
+        }
+        connectTimeouts[id] = timeoutWork
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20.0, execute: timeoutWork)
+    }
+    
+    private func clearConnectTimeout(for peripheral: CBPeripheral) {
+        let id = peripheral.identifier
+        connectTimeouts[id]?.cancel()
+        connectTimeouts[id] = nil
     }
     
     func getLevel(_ name: String, _ side: String) -> UInt8{

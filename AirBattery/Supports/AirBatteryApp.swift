@@ -350,7 +350,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                             usleep(2500000)
                             //if !appleMacPrefix.contains(prefix) {
                             if !device.isAppleDevice {
-                                SPBluetoothDataModel.shared.refeshData { _ in
+                                SPBluetoothDataModel.shared.refeshData(force: true) { _ in
                                     LogReader.shared.run(.connect)
                                     MagicBattery.shared.getIOBTBattery()
                                     MagicBattery.shared.getOtherBTBattery()
@@ -358,10 +358,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                             } else {
                                 if let device = AirBatteryModel.getByName(name) {
                                     if ["Trackpad", "Keyboard", "MMouse", "Mouse"].contains(device.deviceType) {
-                                        SPBluetoothDataModel.shared.refeshData { _ in MagicBattery.shared.scanDevices() }
+                                        SPBluetoothDataModel.shared.refeshData(force: true) { _ in MagicBattery.shared.scanDevices() }
                                     }
                                 } else {
-                                    SPBluetoothDataModel.shared.refeshData { _ in MagicBattery.shared.scanDevices() }
+                                    SPBluetoothDataModel.shared.refeshData(force: true) { _ in MagicBattery.shared.scanDevices() }
                                 }
                             }
                         }
