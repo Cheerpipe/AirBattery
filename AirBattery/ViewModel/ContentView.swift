@@ -531,14 +531,21 @@ struct popover: View {
                                                     // Always Visible Pin Button
                                                     Button(action: {
                                                         alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                                                        var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
                                                         if !alwaysPinnedList.contains(allDevices[index].deviceName) {
                                                             alwaysPinnedList.append(allDevices[index].deviceName)
                                                             pinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                            // Save device info for icon rendering at startup
+                                                            var info: [String: String] = ["deviceType": allDevices[index].deviceType]
+                                                            if let model = allDevices[index].deviceModel { info["deviceModel"] = model }
+                                                            savedInfo[allDevices[index].deviceName] = info
                                                         } else {
                                                             alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                            savedInfo.removeValue(forKey: allDevices[index].deviceName)
                                                         }
                                                         ud.set(pinnedList, forKey: "pinnedList")
                                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                                        ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                                         refeshPinnedBar()
                                                     }, label: {
                                                         Image(systemName: alwaysPinnedList.contains(allDevices[index].deviceName) ? "pin.square.fill" : "pin.square")
@@ -908,14 +915,21 @@ struct nearcastView: View {
                                     // Always Visible Pin Button
                                     Button(action: {
                                         alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                                        var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
                                         if !alwaysPinnedList.contains(devices[index].deviceName) {
                                             alwaysPinnedList.append(devices[index].deviceName)
                                             pinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            // Save device info for icon rendering at startup
+                                            var info: [String: String] = ["deviceType": devices[index].deviceType]
+                                            if let model = devices[index].deviceModel { info["deviceModel"] = model }
+                                            savedInfo[devices[index].deviceName] = info
                                         } else {
                                             alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            savedInfo.removeValue(forKey: devices[index].deviceName)
                                         }
                                         ud.set(pinnedList, forKey: "pinnedList")
                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                        ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                         refeshPinnedBar()
                                     }, label: {
                                         Image(systemName: alwaysPinnedList.contains(devices[index].deviceName) ? "pin.square.fill" : "pin.square")

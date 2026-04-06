@@ -543,12 +543,24 @@ func refeshPinnedBar(unpin: String? = nil) {
         // Combined list of names to manage
         let allPinnedNames = Array(Set(pinnedList + alwaysPinnedList))
         
+        // Load saved device info for always-pinned icons; will be updated as devices are found
+        var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
+        var savedInfoChanged = false
+        
         for name in allPinnedNames {
             let isAlwaysPinned = alwaysPinnedList.contains(name)
             let device = allDevices.first(where: { $0.deviceName == name })
             
             if let device = device {
                 let isStale = (now - device.lastUpdate > 120) // 2 minutes timeout
+                
+                // Backfill saved device info for always-pinned devices (covers pre-existing pins)
+                if isAlwaysPinned && savedInfo[name] == nil {
+                    var info: [String: String] = ["deviceType": device.deviceType]
+                    if let model = device.deviceModel { info["deviceModel"] = model }
+                    savedInfo[name] = info
+                    savedInfoChanged = true
+                }
                 
                 if !isStale {
                     updateOrAddStatusItem(for: device, opacity: 1.0, showText: true)
@@ -557,13 +569,28 @@ func refeshPinnedBar(unpin: String? = nil) {
                 }
             } else if isAlwaysPinned {
                 if let hDevice = AirBatteryModel.getAnyByName(name) ?? persistedDevices.first(where: { $0.deviceName == name }) {
+                    // Backfill saved device info
+                    if savedInfo[name] == nil {
+                        var info: [String: String] = ["deviceType": hDevice.deviceType]
+                        if let model = hDevice.deviceModel { info["deviceModel"] = model }
+                        savedInfo[name] = info
+                        savedInfoChanged = true
+                    }
                     updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false)
                 } else {
                     // Show permanently pinned items at launch even before first detection.
-                    let placeholder = Device(hasBattery: false, deviceID: "@PinnedPlaceholder:\(name)", deviceType: "PinnedPlaceholder", deviceName: name, batteryLevel: 0, isCharging: 0, lastUpdate: 0)
+                    // Use saved device info for correct icon rendering.
+                    let info = savedInfo[name]
+                    let deviceType = info?["deviceType"] ?? "PinnedPlaceholder"
+                    let deviceModel = info?["deviceModel"]
+                    let placeholder = Device(hasBattery: false, deviceID: "@PinnedPlaceholder:\(name)", deviceType: deviceType, deviceName: name, deviceModel: deviceModel, batteryLevel: 0, isCharging: 0, lastUpdate: 0)
                     updateOrAddStatusItem(for: placeholder, opacity: 0.7, showText: false)
                 }
             }
+        }
+        
+        if savedInfoChanged {
+            ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
         }
         
         // Cleanup expired items
@@ -654,7 +681,8 @@ func updateMainIconVisibility(immediate: Bool = false) {
     let hideMainWhenPinned = ud.bool(forKey: "hideMainWhenPinned")
     let showOn = ud.string(forKey: "showOn") ?? "sbar"
     if showOn == "sbar" || showOn == "both" {
-        let shouldHideMain = hideMainWhenPinned && !pinnedItems.isEmpty
+        let alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+        let shouldHideMain = hideMainWhenPinned && (!pinnedItems.isEmpty || !alwaysPinnedList.isEmpty)
         let mainIsVisible = statusBarItem.isVisible
         if shouldHideMain && mainIsVisible {
             if immediate {
