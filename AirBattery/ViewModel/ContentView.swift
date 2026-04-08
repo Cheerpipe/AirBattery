@@ -439,6 +439,12 @@ struct popover: View {
                                                 .foregroundColor(.blackWhite)
                                                 .offset(y: 0.2)
                                         }
+                                        if alwaysPinnedList.contains(allDevices[index].deviceName) {
+                                            Image(systemName: "pin.square.fill")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.blackWhite)
+                                                .offset(y: 0.2)
+                                        }
                                     }.padding(.horizontal, 7)
                                     Spacer()
                                     if allDevices[index].hasBattery {
@@ -838,7 +844,7 @@ struct nearcastView: View {
                                     .offset(y: 0.2)
                             }
                             if alwaysPinnedList.contains(devices[index].deviceName) {
-                                Image(systemName: "pin.fill")
+                                Image(systemName: "pin.square.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.blackWhite)
                                     .offset(y: 0.2)
