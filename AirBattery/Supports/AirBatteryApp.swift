@@ -206,11 +206,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         
         if showOn == "dock" || showOn == "both" { NSApp.setActivationPolicy(.regular) }
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds, .withTimeZone]
-        menu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
-        menu.addItem(withTitle:"About AirBattery".local, action: #selector(openAbout), keyEquivalent: "")
+        let settMenuItem = NSMenuItem(title: "Settings...".local, action: #selector(openSetting), keyEquivalent: "")
+        let aboutMenuItem = NSMenuItem(title: "About AirBattery".local, action: #selector(openAbout), keyEquivalent: "")
+        if #available(macOS 11.0, *) {
+            settMenuItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+            aboutMenuItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+        }
+        menu.addItem(settMenuItem)
+        menu.addItem(aboutMenuItem)
         
-        contextMenu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
-        contextMenu.addItem(withTitle:"Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let settContextItem = NSMenuItem(title: "Settings...".local, action: #selector(openSetting), keyEquivalent: "")
+        let quitContextItem = NSMenuItem(title: "Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        if #available(macOS 11.0, *) {
+            settContextItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+            quitContextItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
+        }
+        contextMenu.addItem(settContextItem)
+        contextMenu.addItem(quitContextItem)
         
         //处理旧版偏好设置
         if let alertList = (ud.object(forKey: "alertList") ?? []) as? [String] {
@@ -405,10 +417,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
         }
     }
     
+    @objc func removeDevice(_ sender: NSMenuItem) {
+        if let deviceName = sender.representedObject as? String {
+            var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+            var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
+            
+            alwaysPinnedList.removeAll(where: { $0 == deviceName })
+            savedInfo.removeValue(forKey: deviceName)
+            
+            ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+            ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
+            
+            refeshPinnedBar()
+        }
+    }
+    
     @objc func togglePopover(_ sender: Any?) {
         if let event = NSApp.currentEvent, event.type == .rightMouseUp {
             if let button = sender as? NSButton {
                 contextMenu.removeAllItems()
+                let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
                 if let deviceName = button.toolTip {
                     let alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
                     if alwaysPinnedList.contains(deviceName) {
@@ -425,18 +453,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                             let hideItem = NSMenuItem(title: "Ocultar".local, action: #selector(hideDevice(_:)), keyEquivalent: "")
                             hideItem.representedObject = deviceName
                             if #available(macOS 11.0, *) {
-                                hideItem.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
+                                hideItem.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)?.withSymbolConfiguration(config)
                             }
                             contextMenu.addItem(hideItem)
+                            
+                            let removeItem = NSMenuItem(title: "Remover".local, action: #selector(removeDevice(_:)), keyEquivalent: "")
+                            removeItem.representedObject = deviceName
+                            if #available(macOS 11.0, *) {
+                                removeItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+                            }
+                            contextMenu.addItem(removeItem)
+                            
                             contextMenu.addItem(NSMenuItem.separator())
                         }
                     }
                 }
                 
-                contextMenu.addItem(withTitle:"Settings...".local, action: #selector(openSetting), keyEquivalent: "")
-                contextMenu.addItem(withTitle:"Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+                let settingsItem = NSMenuItem(title: "Settings...".local, action: #selector(openSetting), keyEquivalent: "")
+                if #available(macOS 11.0, *) {
+                    settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+                }
+                contextMenu.addItem(settingsItem)
                 
-                contextMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+                let quitItem = NSMenuItem(title: "Quit".local, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+                if #available(macOS 11.0, *) {
+                    quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+                }
+                contextMenu.addItem(quitItem)
+                
+                contextMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: button)
             }
             return
         }

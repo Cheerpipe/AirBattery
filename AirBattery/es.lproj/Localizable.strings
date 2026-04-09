@@ -155,3 +155,5 @@
 "Uninstall" = "Desinstalar";
 "Install" = "Instalar";
 "After installation, you can run \"airbattery\" in yor terminal to list all devices." = "Tras instalarlo, usa \"airbattery\" en terminal.";
+
+"Remover" = "Remover";
