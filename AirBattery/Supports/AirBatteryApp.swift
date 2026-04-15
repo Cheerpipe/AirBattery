@@ -420,12 +420,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
     @objc func removeDevice(_ sender: NSMenuItem) {
         if let deviceName = sender.representedObject as? String {
             var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+            var alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
             var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
             
             alwaysPinnedList.removeAll(where: { $0 == deviceName })
+            alertPinnedList.removeAll(where: { $0 == deviceName })
             savedInfo.removeValue(forKey: deviceName)
             
             ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+            ud.set(alertPinnedList, forKey: "alertPinnedList")
             ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
             
             refeshPinnedBar()
@@ -439,7 +442,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotifi
                 let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
                 if let deviceName = button.toolTip {
                     let alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
-                    if alwaysPinnedList.contains(deviceName) {
+                    let alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
+                    if alwaysPinnedList.contains(deviceName) || alertPinnedList.contains(deviceName) {
                         let now = Date().timeIntervalSince1970
                         let allDevices = AirBatteryModel.getAll(noFilter: true)
                         let isStale: Bool
@@ -595,15 +599,32 @@ public extension UserDefaults {
     }
 }
 
+/// Refreshes all pinned device icons in the macOS menu bar.
+///
+/// AirBattery supports three mutually exclusive pin modes, ordered from least to most persistent:
+///
+/// 1. **Alert Pin** (`alertPinnedList`): The icon appears **only** when the device's battery
+///    level is ≤ 20% (the low-battery threshold). Once the battery rises above 20% or the
+///    device goes offline, the icon disappears. This is the "softest" pin mode.
+///
+/// 2. **Standard Pin** (`pinnedList`): The icon is shown as long as the device is online
+///    (i.e., its data is fresh / not stale). When the device disconnects or its data becomes
+///    stale (> 2 min without updates), the icon is removed.
+///
+/// 3. **Always Pin** (`alwaysPinnedList`): The icon is **always** visible, even when the
+///    device is offline or stale. Offline devices are rendered at reduced opacity (0.7)
+///    without percentage text. This is the most persistent pin mode.
+///
+/// Only one pin mode can be active per device at a time — they are mutually exclusive.
 func refeshPinnedBar(unpin: String? = nil) {
     DispatchQueue.main.async {
         guard statusBarItem != nil else { return }
-        var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+        var standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
         var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+        var alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
         let persistedDevices = AirBatteryModel.readData()
         
-        if pinnedList.isEmpty && alwaysPinnedList.isEmpty {
-            // Remove all current pinned items if both lists are empty
+        if standardPinnedList.isEmpty && alwaysPinnedList.isEmpty && alertPinnedList.isEmpty {
             for e in pinnedItems { NSStatusBar.system.removeStatusItem(e) }
             pinnedItems.removeAll()
             updateMainIconVisibility()
@@ -611,8 +632,9 @@ func refeshPinnedBar(unpin: String? = nil) {
         }
         
         if let unpin = unpin {
-            pinnedList.removeAll(where: { $0 == unpin })
+            standardPinnedList.removeAll(where: { $0 == unpin })
             alwaysPinnedList.removeAll(where: { $0 == unpin })
+            alertPinnedList.removeAll(where: { $0 == unpin })
         }
         
         let now = Date().timeIntervalSince1970
@@ -621,21 +643,22 @@ func refeshPinnedBar(unpin: String? = nil) {
         let ncFiles = getFiles(withExtension: "json", in: ncFolder)
         for ncFile in ncFiles { allDevices += AirBatteryModel.ncGetAll(url: ncFile) }
         
-        // Combined list of names to manage
-        let allPinnedNames = Array(Set(pinnedList + alwaysPinnedList))
+        // Merge all three pin lists into one set of device names to process
+        let allPinnedNames = Array(Set(standardPinnedList + alwaysPinnedList + alertPinnedList))
         
-        // Load saved device info for always-pinned icons; will be updated as devices are found
+        // Saved device info is used by Always Pin to render icons even before first detection
         var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
         var savedInfoChanged = false
         
         for name in allPinnedNames {
             let isAlwaysPinned = alwaysPinnedList.contains(name)
+            let isAlertPinned = alertPinnedList.contains(name)
             let device = allDevices.first(where: { $0.deviceName == name })
             
             if let device = device {
                 let isStale = (now - device.lastUpdate > 120) // 2 minutes timeout
                 
-                // Backfill saved device info for always-pinned devices (covers pre-existing pins)
+                // Backfill saved device info for Always Pin (covers pre-existing pins)
                 if isAlwaysPinned && savedInfo[name] == nil {
                     var info: [String: String] = ["deviceType": device.deviceType]
                     if let model = device.deviceModel { info["deviceModel"] = model }
@@ -643,16 +666,25 @@ func refeshPinnedBar(unpin: String? = nil) {
                     savedInfoChanged = true
                 }
                 
-                if !isStale {
+                if isAlertPinned {
+                    // Alert Pin: show only when battery ≤ 20% and > 0, and not stale
+                    let shouldShow = !isStale && device.batteryLevel <= 20 && device.batteryLevel > 0
+                    if shouldShow {
+                        updateOrAddStatusItem(for: device, opacity: 1.0, showText: true, isHidden: false)
+                    }
+                    // If shouldShow is false, the item will be cleaned up below
+                } else if !isStale {
+                    // Standard Pin: show while device is online
                     temporarilyHiddenDevices.remove(name)
                     updateOrAddStatusItem(for: device, opacity: 1.0, showText: true, isHidden: false)
                 } else if isAlwaysPinned {
+                    // Always Pin: show even when stale, at reduced opacity
                     let hidden = temporarilyHiddenDevices.contains(name)
                     updateOrAddStatusItem(for: device, opacity: 0.7, showText: false, isHidden: hidden)
                 }
             } else if isAlwaysPinned {
+                // Always Pin: show placeholder or persisted data when device is not in memory
                 if let hDevice = AirBatteryModel.getAnyByName(name) ?? persistedDevices.first(where: { $0.deviceName == name }) {
-                    // Backfill saved device info
                     if savedInfo[name] == nil {
                         var info: [String: String] = ["deviceType": hDevice.deviceType]
                         if let model = hDevice.deviceModel { info["deviceModel"] = model }
@@ -661,8 +693,7 @@ func refeshPinnedBar(unpin: String? = nil) {
                     }
                     updateOrAddStatusItem(for: hDevice, opacity: 0.7, showText: false, isHidden: temporarilyHiddenDevices.contains(name))
                 } else {
-                    // Show permanently pinned items at launch even before first detection.
-                    // Use saved device info for correct icon rendering.
+                    // Always Pin: render with saved info even before first detection
                     let info = savedInfo[name]
                     let deviceType = info?["deviceType"] ?? "PinnedPlaceholder"
                     let deviceModel = info?["deviceModel"]
@@ -670,22 +701,31 @@ func refeshPinnedBar(unpin: String? = nil) {
                     updateOrAddStatusItem(for: placeholder, opacity: 0.7, showText: false, isHidden: temporarilyHiddenDevices.contains(name))
                 }
             }
+            // Alert Pin with no device data or stale → no icon (cleaned up below)
         }
         
         if savedInfoChanged {
             ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
         }
         
-        // Cleanup expired items
+        // Determine which pinned names should remain active in the menu bar
         let activePinnedNames = allPinnedNames.filter { name in
+            let isAlertPinned = alertPinnedList.contains(name)
             if let device = allDevices.first(where: { $0.deviceName == name }) {
                 let isStale = (now - device.lastUpdate > 120)
-                if !isStale { return alwaysPinnedList.contains(name) || true }
+                if isAlertPinned {
+                    // Alert Pin: only active when online AND battery ≤ 20%
+                    return !isStale && device.batteryLevel <= 20 && device.batteryLevel > 0
+                }
+                // Standard Pin: active while online; Always Pin: always active
+                if !isStale { return true }
                 return alwaysPinnedList.contains(name)
             }
+            if isAlertPinned { return false }
             return alwaysPinnedList.contains(name)
         }
         
+        // Remove status items for devices that are no longer active
         let expItems = pinnedItems.filter({ !activePinnedNames.contains($0.button?.toolTip ?? "") })
         let expNames = expItems.map({ $0.button?.toolTip ?? "" })
         for e in expItems { NSStatusBar.system.removeStatusItem(e) }

@@ -291,8 +291,9 @@ struct popover: View {
     @State private var overCopyButton = false
     @State private var overHideButton = false
     @State private var overAlertButton = false
-    @State private var overPinButton = false
+    @State private var overStandardPinButton = false
     @State private var overAlwaysPinButton = false
+    @State private var overAlertPinButton = false
     @State private var overInfoButton = false
     @State private var overQuitButton = false
     @State private var overSettButton = false
@@ -303,8 +304,10 @@ struct popover: View {
     @State private var hidden = [Int]()
     @State private var hidden2 = [Int]()
     @State private var alertList = ud.get(objectType: [btAlert].self, forKey: "alertList") ?? []
-    @State private var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+    // Pin mode state: three mutually exclusive lists (Alert Pin < Standard Pin < Always Pin)
+    @State private var standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []    // Standard Pin: show while online
+    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? [] // Always Pin: show always, even offline
+    @State private var alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []   // Alert Pin: show only when battery ≤ 20%
     @State private var allNearcast = getFiles(withExtension: "json", in: ncFolder)
     
     var body: some View {
@@ -433,7 +436,13 @@ struct popover: View {
                                                 .font(.system(size: 10))
                                                 .foregroundColor(.blackWhite)
                                         }
-                                        if pinnedList.contains(allDevices[index].deviceName) {
+                                        if alertPinnedList.contains(allDevices[index].deviceName) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .font(.system(size: 9))
+                                                .foregroundColor(.blackWhite)
+                                                .offset(y: 0.2)
+                                        }
+                                        if standardPinnedList.contains(allDevices[index].deviceName) {
                                             Image(systemName: "pin.fill")
                                                 .font(.system(size: 10))
                                                 .foregroundColor(.blackWhite)
@@ -510,38 +519,73 @@ struct popover: View {
                                                     .onHover{ hovering in overAlertButton = hovering }
                                                 }
                                                 if allDevices[index].deviceID != "@MacInternalBattery" {
-                                                    // Standard Pin Button
+                                                    // MARK: - Alert Pin
+                                                    // Shows device icon in the menu bar ONLY when battery ≤ 20%.
+                                                    // This is the least persistent pin mode — the icon disappears
+                                                    // when battery rises above 20% or the device goes offline.
                                                     Button(action: {
-                                                        pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                                        if !pinnedList.contains(allDevices[index].deviceName) {
-                                                            pinnedList.append(allDevices[index].deviceName)
-                                                            // Remove from always pinned if being added to standard? 
-                                                            // Actually, they are distinct. But usually, you'd want one or the other.
-                                                            // Requested: "always visible" vs "standard".
+                                                        alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
+                                                        if !alertPinnedList.contains(allDevices[index].deviceName) {
+                                                            alertPinnedList.append(allDevices[index].deviceName)
+                                                            standardPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
                                                             alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                            var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
+                                                            savedInfo.removeValue(forKey: allDevices[index].deviceName)
+                                                            ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                                         } else {
-                                                            pinnedList.removeAll(where:  { $0 == allDevices[index].deviceName })
+                                                            alertPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
                                                         }
-                                                        ud.set(pinnedList, forKey: "pinnedList")
+                                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
+                                                        ud.set(standardPinnedList, forKey: "pinnedList")
                                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
                                                         refeshPinnedBar()
                                                     }, label: {
-                                                        Image(pinnedList.contains(allDevices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                                        Image(systemName: alertPinnedList.contains(allDevices[index].deviceName) ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
                                                             .resizable().scaledToFit()
-                                                            .frame(width: 18, height: 18, alignment: .center)
-                                                            .foregroundColor(overPinButton ? .accentColor : (pinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
+                                                            .frame(width: 16, height: 16, alignment: .center)
+                                                            .foregroundColor(overAlertPinButton ? .accentColor : (alertPinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
                                                     })
                                                     .buttonStyle(PlainButtonStyle())
-                                                    .onHover{ hovering in overPinButton = hovering }
+                                                    .onHover{ hovering in overAlertPinButton = hovering }
+                                                    .help("Alert Pin")
                                                     
-                                                    // Always Visible Pin Button
+                                                    // MARK: - Standard Pin
+                                                    // Shows device icon in the menu bar while the device is online.
+                                                    // The icon disappears when the device goes offline (stale > 2 min).
+                                                    Button(action: {
+                                                        standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                        if !standardPinnedList.contains(allDevices[index].deviceName) {
+                                                            standardPinnedList.append(allDevices[index].deviceName)
+                                                            alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                            alertPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                        } else {
+                                                            standardPinnedList.removeAll(where:  { $0 == allDevices[index].deviceName })
+                                                        }
+                                                        ud.set(standardPinnedList, forKey: "pinnedList")
+                                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
+                                                        refeshPinnedBar()
+                                                    }, label: {
+                                                        Image(standardPinnedList.contains(allDevices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                                            .resizable().scaledToFit()
+                                                            .frame(width: 18, height: 18, alignment: .center)
+                                                            .foregroundColor(overStandardPinButton ? .accentColor : (standardPinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
+                                                    })
+                                                    .buttonStyle(PlainButtonStyle())
+                                                    .onHover{ hovering in overStandardPinButton = hovering }
+                                                    .help("Standard Pin")
+                                                    
+                                                    // MARK: - Always Pin
+                                                    // Shows device icon in the menu bar at ALL times, even when offline.
+                                                    // Offline/stale devices are shown at reduced opacity (0.7) without
+                                                    // percentage text. This is the most persistent pin mode.
                                                     Button(action: {
                                                         alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
                                                         var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
                                                         if !alwaysPinnedList.contains(allDevices[index].deviceName) {
                                                             alwaysPinnedList.append(allDevices[index].deviceName)
-                                                            pinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
-                                                            // Save device info for icon rendering at startup
+                                                            standardPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
+                                                            alertPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
                                                             var info: [String: String] = ["deviceType": allDevices[index].deviceType]
                                                             if let model = allDevices[index].deviceModel { info["deviceModel"] = model }
                                                             savedInfo[allDevices[index].deviceName] = info
@@ -549,18 +593,20 @@ struct popover: View {
                                                             alwaysPinnedList.removeAll(where: { $0 == allDevices[index].deviceName })
                                                             savedInfo.removeValue(forKey: allDevices[index].deviceName)
                                                         }
-                                                        ud.set(pinnedList, forKey: "pinnedList")
+                                                        ud.set(standardPinnedList, forKey: "pinnedList")
                                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
                                                         ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                                         refeshPinnedBar()
                                                     }, label: {
                                                         Image(systemName: alwaysPinnedList.contains(allDevices[index].deviceName) ? "pin.square.fill" : "pin.square")
                                                             .resizable().scaledToFit()
-                                                            .frame(width: 14, height: 14, alignment: .center) // Square is slightly larger visually, so 14 looks better next to 18 circle
+                                                            .frame(width: 14, height: 14, alignment: .center)
                                                             .foregroundColor(overAlwaysPinButton ? .accentColor : (alwaysPinnedList.contains(allDevices[index].deviceName) ? .accentColor : .secondary))
                                                     })
                                                     .buttonStyle(PlainButtonStyle())
                                                     .onHover{ hovering in overAlwaysPinButton = hovering }
+                                                    .help("Always Pin")
                                                 }
                                                 if #available(macOS 14, *) {
                                                     Button(action: {
@@ -586,8 +632,8 @@ struct popover: View {
                                                         var blackList = (ud.object(forKey: "blackList") as? [String]) ?? []
                                                         blackList.append(allDevices[index].deviceName)
                                                         ud.set(blackList, forKey: "blackList")
-                                                        let pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                                        if pinnedList.contains(allDevices[index].deviceName){
+                                                        let standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                        if standardPinnedList.contains(allDevices[index].deviceName){
                                                             refeshPinnedBar()
                                                         }
                                                     }, label: {
@@ -649,20 +695,20 @@ struct popover: View {
                                         }
                                     }
                                     if allDevices[index].deviceID != "@MacInternalBattery" {
-                                        if !pinnedList.contains(allDevices[index].deviceName) {
+                                        if !standardPinnedList.contains(allDevices[index].deviceName) {
                                             Button(action: {
-                                                pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                                pinnedList.append(allDevices[index].deviceName)
-                                                ud.set(pinnedList, forKey: "pinnedList")
+                                                standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                standardPinnedList.append(allDevices[index].deviceName)
+                                                ud.set(standardPinnedList, forKey: "pinnedList")
                                                 refeshPinnedBar()
                                             }) {
                                                 Label("Pin to Menu Bar", systemImage: "")
                                             }
                                         } else {
                                             Button(action: {
-                                                pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                                pinnedList.removeAll { $0 == allDevices[index].deviceName }
-                                                ud.set(pinnedList, forKey: "pinnedList")
+                                                standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                                standardPinnedList.removeAll { $0 == allDevices[index].deviceName }
+                                                ud.set(standardPinnedList, forKey: "pinnedList")
                                                 refeshPinnedBar()
                                             }) {
                                                 Label("Unpin This Device", systemImage: "")
@@ -723,8 +769,8 @@ struct popover: View {
                                         var blackList = (ud.object(forKey: "blackList") as? [String]) ?? []
                                         blackList.removeAll { $0 == hiddenDevices[index].deviceName }
                                         ud.set(blackList, forKey: "blackList")
-                                        let pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                        if pinnedList.contains(hiddenDevices[index].deviceName){
+                                        let standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                        if standardPinnedList.contains(hiddenDevices[index].deviceName){
                                             refeshPinnedBar()
                                         }
                                     }, label: {
@@ -788,8 +834,9 @@ struct popover: View {
         .onReceive(mainTimer) { t in
             if !fromDock && menuPopover.isShown {
                 allDevices = AirBatteryModel.getAll()
-                pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
                 alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+                alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
                 hiddenDevices = AirBatteryModel.getBlackList()
                 hidden = [Int]()
                 hidden2 = [Int]()
@@ -808,11 +855,14 @@ struct nearcastView: View {
     @State private var overStack = -1
     @State private var overCopyButton = false
     @State private var overAlertButton = false
-    @State private var overPinButton = false
+    @State private var overStandardPinButton = false
     @State private var alertList = ud.get(objectType: [btAlert].self, forKey: "alertList") ?? []
-    @State private var pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
+    // Pin mode state: three mutually exclusive lists (Alert Pin < Standard Pin < Always Pin)
+    @State private var standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []    // Standard Pin: show while online
+    @State private var alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? [] // Always Pin: show always, even offline
+    @State private var alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []   // Alert Pin: show only when battery ≤ 20%
     @State private var overAlwaysPinButton = false
+    @State private var overAlertPinButton = false
     
     var body: some View {
         Spacer().frame(height: 8)
@@ -837,7 +887,13 @@ struct nearcastView: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.blackWhite)
                             }
-                            if pinnedList.contains(devices[index].deviceName) {
+                            if alertPinnedList.contains(devices[index].deviceName) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.blackWhite)
+                                    .offset(y: 0.2)
+                            }
+                            if standardPinnedList.contains(devices[index].deviceName) {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 10))
                                     .foregroundColor(.blackWhite)
@@ -897,35 +953,68 @@ struct nearcastView: View {
                                         .buttonStyle(PlainButtonStyle())
                                         .onHover{ hovering in overAlertButton = hovering }
                                     }
-                                    // Standard Pin Button
+                                    // MARK: - Alert Pin
+                                    // Shows device icon in the menu bar ONLY when battery ≤ 20%.
                                     Button(action: {
-                                        pinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
-                                        if !pinnedList.contains(devices[index].deviceName) {
-                                            pinnedList.append(devices[index].deviceName)
+                                        alertPinnedList = (ud.object(forKey: "alertPinnedList") as? [String]) ?? []
+                                        if !alertPinnedList.contains(devices[index].deviceName) {
+                                            alertPinnedList.append(devices[index].deviceName)
+                                            standardPinnedList.removeAll(where: { $0 == devices[index].deviceName })
                                             alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
+                                            savedInfo.removeValue(forKey: devices[index].deviceName)
+                                            ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                         } else {
-                                            pinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            alertPinnedList.removeAll(where: { $0 == devices[index].deviceName })
                                         }
-                                        ud.set(pinnedList, forKey: "pinnedList")
+                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
+                                        ud.set(standardPinnedList, forKey: "pinnedList")
                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
                                         refeshPinnedBar()
                                     }, label: {
-                                        Image(pinnedList.contains(devices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                        Image(systemName: alertPinnedList.contains(devices[index].deviceName) ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
                                             .resizable().scaledToFit()
-                                            .frame(width: 18, height: 18, alignment: .center)
-                                            .foregroundColor(overPinButton ? .accentColor : (pinnedList.contains(devices[index].deviceName) ? .accentColor : .secondary))
+                                            .frame(width: 16, height: 16, alignment: .center)
+                                            .foregroundColor(overAlertPinButton ? .accentColor : (alertPinnedList.contains(devices[index].deviceName) ? .accentColor : .secondary))
                                     })
                                     .buttonStyle(PlainButtonStyle())
-                                    .onHover{ hovering in overPinButton = hovering }
+                                    .onHover{ hovering in overAlertPinButton = hovering }
+                                    .help("Alert Pin")
                                     
-                                    // Always Visible Pin Button
+                                    // MARK: - Standard Pin
+                                    // Shows device icon while the device is online.
+                                    Button(action: {
+                                        standardPinnedList = (ud.object(forKey: "pinnedList") as? [String]) ?? []
+                                        if !standardPinnedList.contains(devices[index].deviceName) {
+                                            standardPinnedList.append(devices[index].deviceName)
+                                            alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            alertPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        } else {
+                                            standardPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                        }
+                                        ud.set(standardPinnedList, forKey: "pinnedList")
+                                        ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
+                                        refeshPinnedBar()
+                                    }, label: {
+                                        Image(standardPinnedList.contains(devices[index].deviceName) ? "pin.circle.fill" : "pin.circle")
+                                            .resizable().scaledToFit()
+                                            .frame(width: 18, height: 18, alignment: .center)
+                                            .foregroundColor(overStandardPinButton ? .accentColor : (standardPinnedList.contains(devices[index].deviceName) ? .accentColor : .secondary))
+                                    })
+                                    .buttonStyle(PlainButtonStyle())
+                                    .onHover{ hovering in overStandardPinButton = hovering }
+                                    .help("Standard Pin")
+                                    
+                                    // MARK: - Always Pin
+                                    // Shows device icon at ALL times, even when offline (at reduced opacity).
                                     Button(action: {
                                         alwaysPinnedList = (ud.object(forKey: "alwaysPinnedList") as? [String]) ?? []
                                         var savedInfo = (ud.object(forKey: "alwaysPinnedDeviceInfo") as? [String: [String: String]]) ?? [:]
                                         if !alwaysPinnedList.contains(devices[index].deviceName) {
                                             alwaysPinnedList.append(devices[index].deviceName)
-                                            pinnedList.removeAll(where: { $0 == devices[index].deviceName })
-                                            // Save device info for icon rendering at startup
+                                            standardPinnedList.removeAll(where: { $0 == devices[index].deviceName })
+                                            alertPinnedList.removeAll(where: { $0 == devices[index].deviceName })
                                             var info: [String: String] = ["deviceType": devices[index].deviceType]
                                             if let model = devices[index].deviceModel { info["deviceModel"] = model }
                                             savedInfo[devices[index].deviceName] = info
@@ -933,8 +1022,9 @@ struct nearcastView: View {
                                             alwaysPinnedList.removeAll(where: { $0 == devices[index].deviceName })
                                             savedInfo.removeValue(forKey: devices[index].deviceName)
                                         }
-                                        ud.set(pinnedList, forKey: "pinnedList")
+                                        ud.set(standardPinnedList, forKey: "pinnedList")
                                         ud.set(alwaysPinnedList, forKey: "alwaysPinnedList")
+                                        ud.set(alertPinnedList, forKey: "alertPinnedList")
                                         ud.set(savedInfo, forKey: "alwaysPinnedDeviceInfo")
                                         refeshPinnedBar()
                                     }, label: {
@@ -945,6 +1035,7 @@ struct nearcastView: View {
                                     })
                                     .buttonStyle(PlainButtonStyle())
                                     .onHover{ hovering in overAlwaysPinButton = hovering }
+                                    .help("Always Pin")
                                     if #available(macOS 14, *) {
                                         Button(action: {
                                             copyToClipboard(devices[index].deviceName)
